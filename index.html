@@ -1,0 +1,1359 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Home, Briefcase, Users, Bell, CheckCircle2, Clock, MapPin, Phone, Mail, Star, Search, Plus, ChevronRight, ArrowLeft, User, Settings, LogOut, Zap, Shield, Award, MessageCircle, Hammer, Wrench, PaintBucket, Sparkles, TrendingUp, DollarSign, Calendar, FileText, ThumbsUp, Lock, Eye, EyeOff, BarChart3, UserCheck, AlertCircle, Filter, X, Camera, Video, Crown, Globe, Image, Edit2, Upload, Trash2, PlayCircle, Save, Send, MessagesSquare, ExternalLink, BookOpen, Building2, Facebook, Instagram } from 'lucide-react';
+
+// -----------------------------------------------------------------------------
+// Browser storage shim — gives window.storage the same shape the app expects
+// (originally the shared Claude artifact storage API). Uses localStorage under
+// the hood, so data persists per browser/device (not shared across users).
+// -----------------------------------------------------------------------------
+if (typeof window !== 'undefined' && !window.storage) {
+  window.storage = {
+    async get(key /* , shared */) {
+      const v = localStorage.getItem(key);
+      return v === null ? null : { key, value: v, shared: true };
+    },
+    async set(key, value /* , shared */) {
+      localStorage.setItem(key, value);
+      return { key, value, shared: true };
+    },
+    async delete(key /* , shared */) {
+      localStorage.removeItem(key);
+      return { key, deleted: true, shared: true };
+    },
+    async list(prefix = '' /* , shared */) {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefix)) keys.push(k);
+      }
+      return { keys, prefix, shared: true };
+    },
+  };
+}
+
+const CATEGORIES = [
+  '3D Rendering & Design', 'Appliance Repair', 'Arborists', 'Architects / Building Designers',
+  'Asphalt', 'AV Low Voltage', 'Bathroom Remodeling', 'Bookkeepers', 'Builders',
+  'Cabinet Companies', 'Car Detailing', 'Carpet & Upholstery Cleaning', 'Cleaning Services',
+  'Concrete', 'Countertops', 'Custom Closets', 'Custom Wood Working',
+  'Damage Restoration', 'Decks', 'Demolition/Excavation', 'Doors', 'Drywall',
+  'Dumpster Rentals', 'Electricians', 'Engineers', 'Epoxy', 'Fences', 'Flooring',
+  'Foundation Repair', 'Framing', 'Garage Doors', 'General Construction',
+  'Glass & Screens', 'Gutters', 'Handyman', 'Hazard & Safety Professionals',
+  'Health Insurance', 'Home Inspectors', 'HVAC', 'Insulation', 'Interior Design',
+  'Irrigation', 'Kitchen Remodeling', 'Landscaping', 'Machine & Heavy Equipment Rental',
+  'Masonry', 'Material Hauling', 'Material Suppliers', 'Metal Buildings',
+  'Mobile Mechanics', 'Mold Remediation', 'Mortgage Lenders', 'Movers',
+  'Outdoor Lighting', 'Painters', 'Parking Lot Striping', 'Pest Control',
+  'Plumbers', 'Ponds & Water Features', 'Pool Builders', 'Pool Cleaners',
+  'Pressure Washing', 'Print Shops', 'Professional Organizers', 'Project Managers',
+  'Public Adjusters', 'Rainwater Collection', 'Roofing', 'Septic', 'Siding',
+  'Smart Home / Automation', 'Staging', 'Stairs & Railings', 'Tile',
+  'Title Companies', 'Trash Haul', 'Tree Trimming', 'Wallpaper', 'Water Damage Restoration',
+  'Waterproofing', 'Welding', 'Window Cleaning', 'Windows'
+];
+
+const FEATURED_CATEGORIES = [
+  'General Construction', 'Tile', 'Flooring', 'Plumbers', 'Electricians', 'HVAC',
+  'Roofing', 'Painters', 'Handyman', 'Kitchen Remodeling', 'Bathroom Remodeling', 'Landscaping'
+];
+
+// ============ SEEDED CV MEMBERS (scraped from contractorverifiedatx.com) ============
+const SEED_MEMBERS = [
+  // TILE
+  { id:'m_001', name:"Martinez Tile & Construction LLC", category:"Tile", website:"https://martineztileandconstruction.com/", phone:"5124579801", email:"martineztileandconstruction@gmail.com", logo:"https://static.wixstatic.com/media/4e462c_7c08479348f94af1859a80dececad14b~mv2.png/v1/crop/x_2,y_23,w_2443,h_1838/fill/w_229,h_172,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/MT%26C_PNG.png" },
+  { id:'m_002', name:"Shackelbee Flooring & Installation", category:"Tile", phone:"5125520123", email:"shackelbee.installation@gmail.com", logo:"https://static.wixstatic.com/media/781208_90c65331fede4c60ab7f9662165eca3d~mv2.png/v1/fill/w_146,h_143,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/781208_90c65331fede4c60ab7f9662165eca3d~mv2.png" },
+  { id:'m_003', name:"AGN Services", category:"Tile", website:"https://www.agnservices.com", phone:"5128049470", email:"armandorodriguez146@gmail.com", logo:"https://static.wixstatic.com/media/a4943b_082d190c19bf44adaeedb64587c6adb3~mv2.jpg/v1/crop/x_0,y_41,w_480,h_432/fill/w_199,h_179,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/a4943b_082d190c19bf44adaeedb64587c6adb3~mv2.jpg" },
+  { id:'m_004', name:"Alvarez Tile & Flooring", category:"Tile", phone:"2103509081", email:"a.alvarezflooring@gmail.com", logo:"https://static.wixstatic.com/media/dbf2f2_be5a02016bdd48159d695a24722b8205~mv2.jpg/v1/crop/x_22,y_439,w_790,h_293/fill/w_229,h_84,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/dbf2f2_be5a02016bdd48159d695a24722b8205~mv2.jpg" },
+  // FLOORING
+  { id:'m_005', name:"The Habitat Heroes", category:"Flooring", website:"https://www.austintxhandyman.com", phone:"5122284851", logo:"https://static.wixstatic.com/media/4e462c_ff2778648ebc40668beda38be9cc7e86~mv2.png/v1/crop/x_117,y_265,w_628,h_612/fill/w_204,h_197,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/4e462c_ff2778648ebc40668beda38be9cc7e86~mv2.png" },
+  { id:'m_006', name:"Carpet Now", category:"Flooring", website:"https://carpetnow.com", phone:"5123992828", email:"tim@carpetnow.com", logo:"https://static.wixstatic.com/media/8cfc7f_eec9942afa6b478881bdf67e63bc541f~mv2.jpeg/v1/fill/w_235,h_120,al_c,q_80/8cfc7f_eec9942afa6b478881bdf67e63bc541f~mv2.jpeg" },
+  { id:'m_007', name:"Arenas Flooring Specialists", category:"Flooring", website:"https://arenasflooringllc.com", phone:"5127309374", email:"arenasflooring9281@gmail.com", logo:"https://static.wixstatic.com/media/844c63_7797d4014ec34991bf50d071884e27d0~mv2.jpg/v1/fill/w_171,h_167,al_c,q_80/844c63_7797d4014ec34991bf50d071884e27d0~mv2.jpg" },
+  { id:'m_008', name:"Adonay Flooring & Painting", category:"Flooring", website:"https://adonayflooring.com", phone:"5122139192", email:"estimates@adonayflooring.com", logo:"https://static.wixstatic.com/media/27fca9_19f9da5731db46129148e086f314115b~mv2.png/v1/fill/w_222,h_167,al_c,q_85/27fca9_19f9da5731db46129148e086f314115b~mv2.png" },
+  { id:'m_009', name:"LIN Premium Flooring", category:"Flooring", phone:"7372857756" },
+  { id:'m_010', name:"Floor Masters", category:"Flooring", website:"https://www.floormastersatx.com", phone:"5127703787", logo:"https://static.wixstatic.com/media/a63cb3_c29b4bce1c8c4737a64b85fb8ed211ad~mv2.jpg/v1/fill/w_216,h_143,al_c,q_80/a63cb3_c29b4bce1c8c4737a64b85fb8ed211ad~mv2.jpg" },
+  { id:'m_011', name:"AIC Flooring Specialists", category:"Flooring", website:"https://www.aicflooring.com", phone:"5125694226", logo:"https://static.wixstatic.com/media/87f96f_4776b2ed939a459f8004b0b057eab45d~mv2.jpeg/v1/fill/w_212,h_120,al_c,q_80/87f96f_4776b2ed939a459f8004b0b057eab45d~mv2.jpeg" },
+  { id:'m_012', name:"ATX Custom Floors LLC", category:"Flooring", phone:"5128443869", email:"Atxcustomfloors@hotmail.com" },
+  // GENERAL CONSTRUCTION
+  { id:'m_013', name:"The Standard Construction", category:"General Construction", website:"https://thestandardpros.com/", phone:"5124441555", email:"brian@thestandardpros.com", logo:"https://static.wixstatic.com/media/4e462c_cd367b11af0e4418aebded3a599892f2~mv2.png/v1/fill/w_229,h_97,al_c,q_85/b4466c_d9660b2d471141fabfd576abaa4551d4_mv2.png" },
+  { id:'m_014', name:"Sky-Lan Services", category:"General Construction", website:"https://skylanservices.com", phone:"5125637302", email:"admin@skylanservices.com" },
+  { id:'m_015', name:"Build Space Cowboy", category:"General Construction", website:"http://buildspacecowboy.com", phone:"5127818265", email:"dominic@buildspacecowboy.com" },
+  { id:'m_016', name:"Acosta Remodeling & Much More LLC", category:"General Construction", phone:"2108129003", email:"acostaremodelingnmuchmore@gmail.com" },
+  { id:'m_017', name:"Maddison Homes", category:"General Construction", website:"https://www.maddisonhomes.com", phone:"5124025440", email:"Terence@maddisonhomes.com", logo:"https://static.wixstatic.com/media/7cb5d6_823aa41606cf4feab0eb1ba61a24c8e8~mv2.png/v1/fill/w_172,h_172,al_c,q_85/7cb5d6_823aa41606cf4feab0eb1ba61a24c8e8~mv2.png" },
+  { id:'m_018', name:"Aaron's Handyman & Contracting", category:"General Construction", website:"https://www.aaronshandymanandcontracting.com", phone:"5124109258", email:"ajh9221982atx@gmail.com" },
+  { id:'m_019', name:"Impact Building", category:"General Construction", website:"https://ibuildwithimpact.com/", phone:"5123645350", email:"info@ibuildwithimpact.com" },
+  { id:'m_020', name:"Martin Squared Contracting", category:"General Construction", phone:"5126444430", email:"martinsquaredenterprises@gmail.com" },
+  { id:'m_021', name:"Proper 3 Renovations", category:"General Construction", website:"https://www.austinnewhomesandrenovations.com", phone:"5125884550" },
+  { id:'m_022', name:"Recomain LLC", category:"General Construction", website:"https://www.recomain.com/", phone:"5128883629" },
+  { id:'m_023', name:"Jaramillo Services", category:"General Construction", phone:"5129319384", email:"info@jaramillo.services" },
+  { id:'m_024', name:"Niesen Construction", category:"General Construction", website:"https://niesenconstruction.com/", phone:"5125032711", email:"charles@niesenconstruction.com" },
+  { id:'m_025', name:"Baig Developers", category:"General Construction", website:"http://baigdevelopers.com", phone:"2145193196", email:"mirza@baigdevelopers.com" },
+  { id:'m_026', name:"Alcantara Design", category:"General Construction", phone:"8005493152" },
+  { id:'m_027', name:"Aldair's Construction", category:"General Construction", phone:"8326519198", email:"aldairsconstructionllc@gmail.com" },
+  { id:'m_028', name:"Brick By Brick Construction LLC", category:"General Construction", website:"https://www.brickxbrickconstruction.com", phone:"6305287198" },
+  { id:'m_029', name:"S&J Remodeling", category:"General Construction", website:"https://sabandjayremodeling.com", phone:"9072279434", email:"sabandjayremodeling@gmail.com" },
+  { id:'m_030', name:"J.Cruz Landscaping Services", category:"General Construction", phone:"5126969163" },
+  { id:'m_031', name:"Complete Remodeling", category:"General Construction", phone:"5128095466", email:"completeremodelingllc2021@gmail.com" },
+  { id:'m_032', name:"Oak & Stone Residential", category:"General Construction", website:"https://www.oakandstoneresidential.com", phone:"7372624369", email:"johnny@oakandstoneresidential.com" },
+  { id:'m_033', name:"Landry Wheeler Construction", category:"General Construction", website:"https://www.landryflips.com", phone:"2546241853", email:"Lwheelerconstruct@gmail.com" },
+  { id:'m_034', name:"B&B Investment Development LLC", category:"General Construction", website:"https://statzdevelopment.com", phone:"7373516994", email:"bbinvestmenttexas@gmail.com" },
+  { id:'m_035', name:"Rise Contracting Services", category:"General Construction", website:"https://www.risecontractingservices.com", phone:"5128102548" },
+  { id:'m_036', name:"Square One Construction", category:"General Construction", website:"https://www.squareoneconstructionllc.com", phone:"5126614365", email:"info@squareoneconstructionllc.com" },
+  { id:'m_037', name:"Lonestar Renovation & Design", category:"General Construction", website:"https://www.lsrdaustin.com", phone:"5127580128" },
+  { id:'m_038', name:"Construction Solutions, Inc.", category:"General Construction", website:"https://constructionsolutions-group.com", phone:"5124704439", email:"mariana@csiatx.com" },
+  { id:'m_039', name:"ROA Industries", category:"General Construction", phone:"9562640888", email:"Roalndustriesllc@gmail.com" },
+  { id:'m_040', name:"2F Construction LLC", category:"General Construction", phone:"5126693314", email:"fabian.2fconstruction@outlook.com" },
+  { id:'m_041', name:"Esquives Construction & Remodeling", category:"General Construction", phone:"5126682896" },
+  { id:'m_042', name:"TJ Renovate LLC", category:"General Construction", phone:"5128000231", email:"tyler@tjrenovate.com" },
+  // ROOFING
+  { id:'m_043', name:"LIV Roofing", category:"Roofing", website:"https://www.livroofingservices.com/", phone:"5129563613", featured:true, logo:"https://static.wixstatic.com/media/4e462c_fdcf811a754a4755a7b7edb0d5c69105~mv2.jpg/v1/fill/w_235,h_141,al_c,q_80/unnamed-3_edited.jpg" },
+  { id:'m_044', name:"Texas Best Roofing Co", category:"Roofing", website:"https://texasbestroofingco.com", phone:"9792137022", email:"Tracey@texasbestroofingco.com" },
+  { id:'m_045', name:"Tex-Martinez Roofing", category:"Roofing", website:"https://texmartinezroofing.com", phone:"2543121480", email:"perla@texmartinezroofing.com", logo:"https://static.wixstatic.com/media/4b1f44_d9c46a60323c47e4a0e3939095a161cb~mv2.jpeg/v1/fill/w_180,h_180,al_c,q_80/4b1f44_d9c46a60323c47e4a0e3939095a161cb~mv2.jpeg" },
+  { id:'m_046', name:"Hosch Construction & Roofing", category:"Roofing", website:"https://www.hoschroofing.com/", phone:"5127632112", email:"HoschRoofing@gmail.com" },
+  { id:'m_047', name:"American Seamless Gutters", category:"Roofing", website:"https://www.americanseamlesstx.com", phone:"2106252326" },
+  { id:'m_048', name:"Elite Roofing & Restoration", category:"Roofing", website:"https://www.eliteroofingtx.com", phone:"5124307141" },
+  { id:'m_049', name:"A1 Quality Roofing", category:"Roofing", website:"https://saveonroofstx.com", phone:"5127227740" },
+  { id:'m_050', name:"Tarrytown Roofing", category:"Roofing", website:"https://tarrytownroofing.com", phone:"7138243620", email:"wolfgang@tarrytownroofing.com" },
+  { id:'m_051', name:"Flagstone Roofing & Exteriors", category:"Roofing", website:"https://flagstoneroofing.com/", phone:"5122250123" },
+  { id:'m_052', name:"Green Shield Roofs", category:"Roofing", website:"https://greenshieldroofs.com", phone:"5124967363" },
+  { id:'m_053', name:"Urtiz Roofing & Waterproofing", category:"Roofing", website:"https://urtizroofing.com", phone:"5126192976" },
+  { id:'m_054', name:"Impact Building Solutions", category:"Roofing", website:"https://ibuildwithimpact.com/roofing-division", phone:"5123645350" },
+  { id:'m_055', name:"Roof Roof Roofing", category:"Roofing", phone:"5127988736" },
+  { id:'m_056', name:"Clear Choice Roofing", category:"Roofing", website:"https://www.clearchoiceroofingatx.com", phone:"5127124906" },
+  { id:'m_057', name:"Summit Roofing", category:"Roofing", website:"https://summitrooftexas.com", phone:"5128287663", email:"Frankie.summitroof@gmail.com", featured:true },
+  { id:'m_058', name:"Foster Roofing", category:"Roofing", phone:"2544215333", email:"jerekfoster@icloud.com" },
+  // PLUMBERS
+  { id:'m_059', name:"Sosa Services", category:"Plumbers", website:"https://sosaservicestx.com", phone:"5129490662", license:"44799", logo:"https://static.wixstatic.com/media/4e462c_dae0e0f893bf4b219b71287b7fad34c2~mv2.png/v1/fill/w_208,h_122,al_c,q_85/logo.png" },
+  { id:'m_060', name:"Real Texas Plumbing", category:"Plumbers", website:"https://realtexasplumbing.com", phone:"5126622949", email:"realtexasplumbing@gmail.com", license:"44420" },
+  { id:'m_061', name:"Austin Area Plumbing", category:"Plumbers", website:"https://austinareaplumbingofroundrock.com", phone:"5127367113", license:"39197" },
+  { id:'m_062', name:"Dear Plumber", category:"Plumbers", website:"https://dearplumber.com", phone:"5126619783", email:"dearplumberaustin@gmail.com", license:"43554" },
+  { id:'m_063', name:"ET Plumbing", category:"Plumbers", website:"http://www.theetplumbing.com", phone:"5128261828", email:"theetplumbing@gmail.com", license:"38485" },
+  { id:'m_064', name:"EZG Plumbing Services", category:"Plumbers", website:"https://www.ezgplumbing.com", phone:"5123639215", email:"ezgsrv.kristy@gmail.com", license:"44963" },
+  { id:'m_065', name:"M&M Performance Company", category:"Plumbers", website:"https://www.mmperformanceplumbing.net/home", phone:"5123736514", email:"lcm012001@yahoo.com", license:"37509" },
+  { id:'m_066', name:"June Plumbing", category:"Plumbers", phone:"7378320374", email:"njune.co@gmail.com", license:"45062" },
+  { id:'m_067', name:"Plumbing Outfitters", category:"Plumbers", phone:"5122537337", license:"41984" },
+  { id:'m_068', name:"Bull Plumbing LLC", category:"Plumbers", phone:"3252272814", email:"thebullplumbing@gmail.com", license:"45585" },
+  { id:'m_069', name:"Accredited Plumbing Services", category:"Plumbers", phone:"7377044303", email:"accredited.plumbing.enterprises@gmail.com", license:"39922" },
+  { id:'m_070', name:"Done Right Plumbing", category:"Plumbers", website:"https://www.donerightplumbingtx.com", phone:"2545170710", email:"donerightplumbingtx@gmail.com", license:"45510" },
+  { id:'m_071', name:"Vaquero Plumbing", category:"Plumbers", website:"https://vaqueroplumbing.com", phone:"5128938705", email:"office@vaqueroplumbing.com", license:"15304" },
+  { id:'m_072', name:"Plumb Life Industries", category:"Plumbers", phone:"7202804321", email:"jaredtrialplumbing@gmail.com", license:"45517" },
+  { id:'m_073', name:"Garrison Plumbing LLC", category:"Plumbers", phone:"5122950825", email:"garrisonplumber@gmail.com", license:"M43035" },
+  // ELECTRICIANS
+  { id:'m_074', name:"Home and Office Power Solutions", category:"Electricians", website:"https://baileysledgeelectrical.com", phone:"2544447244", email:"mercer_caleb@icloud.com", license:"40725" },
+  { id:'m_075', name:"Mikcor Electric", category:"Electricians", website:"https://www.mikcorelectric.com", phone:"5126771394", email:"mikhail@mikcorelectric.com", license:"38731" },
+  { id:'m_076', name:"Hutto Electrical Services", category:"Electricians", website:"https://huttoelectricalservices.com", phone:"5129059727", email:"info@HuttoElectricalServices.com", license:"34653" },
+  { id:'m_077', name:"Reese Electric", category:"Electricians", website:"https://reese-electric.com", phone:"7377049325", email:"james@reese-electric.com", license:"36547" },
+  { id:'m_078', name:"Irwin Electric LLC", category:"Electricians", phone:"5126893624", email:"irwinelectricatx@gmail.com", license:"37610" },
+  { id:'m_079', name:"J.G & I Electrical Contractor", category:"Electricians", website:"https://www.jgielectricalcontractors.com", phone:"5126442733", license:"35789" },
+  { id:'m_080', name:"Ortiz Electrical Services", category:"Electricians", website:"https://ortizelectricalsvcs.com", phone:"5128170456", email:"victor@ortizelectricalsvcs.com", license:"37555" },
+  { id:'m_081', name:"82nd Electric", category:"Electricians", phone:"5123659162", email:"kyle@82electric.com", license:"40786" },
+  { id:'m_082', name:"We Love Electric", category:"Electricians", website:"https://www.weloveelectric.com", phone:"5127185567", email:"plans2service@gmail.com", license:"34507" },
+  { id:'m_083', name:"MCTZ Electric", category:"Electricians", phone:"5126206034", email:"osvaldo.mctzelectric@gmail.com", license:"37455" },
+  { id:'m_084', name:"Main Source Electric", category:"Electricians", website:"https://mainsourceelectric.com", phone:"8305564694", email:"perezpowersolutions@gmail.com", license:"38350" },
+  { id:'m_085', name:"Rise Electrical Contracting", category:"Electricians", website:"http://www.rise-electrical.com", phone:"9797022315", email:"Zach@Rise-Electrical.com", license:"35687" },
+  { id:'m_086', name:"Mireles Innovation Group", category:"Electricians", phone:"7378881486", email:"mirelesinnovationgroupllc@gmail.com", license:"38172" },
+  { id:'m_087', name:"Watts Up Electric", category:"Electricians", phone:"5129980124", email:"jm.wattsupelectric@gmail.com", license:"39592" },
+  { id:'m_088', name:"Taymar Electric", category:"Electricians", website:"https://www.taymarelectric.com", phone:"5128931679", license:"36309" },
+  { id:'m_089', name:"M-1 Electric", category:"Electricians", website:"https://www.m-1electric.com/", phone:"5126196095", email:"M1Electricservices@yahoo.com", license:"275150" },
+  { id:'m_090', name:"LDS Services", category:"Electricians", license:"40991" },
+  // HVAC
+  { id:'m_091', name:"Northwest Services ATX", category:"HVAC", phone:"5129214497", email:"northwestservicesatx@gmail.com", license:"132624" },
+  { id:'m_092', name:"Vega Heating & Air", category:"HVAC", phone:"5129857051", email:"installs@vegaheatingandair.com", license:"128702" },
+  { id:'m_093', name:"LOA AC & Heating", category:"HVAC", phone:"5123546497", email:"loaatx21@outlook.com", license:"136320" },
+  { id:'m_094', name:"Rancho Air Conditioning & Heating", category:"HVAC", phone:"5129491447", email:"ranchoairconditioning@gmail.com", license:"137377" },
+  { id:'m_095', name:"Always Local Heating & Air Conditioning", category:"HVAC", website:"https://www.alwayslocalac.com", phone:"5123610003", license:"102809" },
+  { id:'m_096', name:"US Air HVAC Service", category:"HVAC", website:"https://www.usairtx.com", phone:"7373219074", email:"QUEVEDOROSABAL1984@GMAIL.COM", license:"134692" },
+  { id:'m_097', name:"Belton AC", category:"HVAC", website:"https://www.beltonac.com", phone:"2545006907", email:"help@beltonac.com", license:"127181" },
+  { id:'m_098', name:"Airfix Mechanical", category:"HVAC", website:"https://www.getyourairfix.com/", phone:"5123006858", license:"127722" },
+  { id:'m_099', name:"Jurnee Mechanical", category:"HVAC", phone:"5125845651" },
+  { id:'m_100', name:"Homegrown Heating & Cooling", category:"HVAC", website:"https://www.homegrownhc.com", phone:"5127868400", email:"mrebolloso@Homegrownhc.com", license:"144887" },
+  { id:'m_101', name:"AC Sky", category:"HVAC", website:"https://www.acskyaustin.net", phone:"7373572076", email:"acskyllc@gmail.com", license:"120533" },
+  { id:'m_102', name:"Foy's Cooling & Heating", category:"HVAC", website:"https://www.foyscoolingheating.com/", phone:"5127625259", license:"39215" },
+  { id:'m_103', name:"Hook-Em Up HomeServices", category:"HVAC", phone:"5125548458", license:"00129307" },
+  { id:'m_104', name:"Damairv", category:"HVAC", website:"https://www.damairvac.com/", phone:"5128500388", email:"damairv@gmail.com", license:"129669" },
+  { id:'m_105', name:"All Pro Services", category:"HVAC", phone:"5122037089", email:"allproservicescontact@gmail.com" },
+  { id:'m_106', name:"Blue Wave Heating & Air", category:"HVAC", website:"https://www.bluewaveheatingandair.com/", phone:"5129006512", email:"bryan@bluewaveheatingandair.com", license:"106912" },
+  // PAINTERS
+  { id:'m_107', name:"Capital Painting & Refinishing", category:"Painters", website:"https://capitalpaintingtexas.com", phone:"7372627900", email:"eric@capitalpaintingtexas.com" },
+  { id:'m_108', name:"The Habitat Heroes", category:"Painters", website:"https://www.austintxhandyman.com", phone:"5122284851" },
+  { id:'m_109', name:"Wow 1 Day Painting", category:"Painters", phone:"5123825093", email:"drax.marlow@wow1day.com" },
+  { id:'m_110', name:"CBC Painting", category:"Painters", website:"https://cbcpaintingllc.com", phone:"3373093208", email:"office@cbcpaintingllc.com" },
+  { id:'m_111', name:"ATX Elite Painting", category:"Painters", phone:"5128973265" },
+  { id:'m_112', name:"Lion Painting & Services", category:"Painters", phone:"5128106854", email:"Lionpaintandservices@gmail.com" },
+  { id:'m_113', name:"Clean Coat Painting", category:"Painters", website:"https://cleancoatpaintingatx.com", phone:"5124847985", email:"cleancoatpainting23@gmail.com" },
+  { id:'m_114', name:"Austin Professional Painting", category:"Painters", website:"https://austinprofessionalpainting.com", phone:"5128457821", email:"sales@austinprofessionalpainting.com" },
+  { id:'m_115', name:"MVA Painters", category:"Painters", phone:"5125739932", email:"mvapaintersllc@gmail.com" },
+  { id:'m_116', name:"King's Painters", category:"Painters", website:"https://www.kingspainters.com/", phone:"5125386029" },
+  { id:'m_117', name:"TXB Construction Services", category:"Painters", phone:"8303524295", email:"txbconstruction.24@gmail.com" },
+  { id:'m_118', name:"Precision Services of Austin", category:"Painters", website:"https://precisionservicesofaustin.com", phone:"5128565080" },
+  { id:'m_119', name:"Austin Painting & Drywall", category:"Painters", website:"https://atxgc.com", phone:"5129930948" },
+  { id:'m_120', name:"Alliance Construction and Renovation", category:"Painters", website:"https://abgpainting.com", phone:"8324342364" },
+  { id:'m_121', name:"Painterall Residential Painting", category:"Painters", website:"https://www.painterall.com", phone:"5126796761", email:"buenaview7@gmail.com" },
+  { id:'m_122', name:"Jose's Remodel", category:"Painters", phone:"8066767643" },
+  { id:'m_123', name:"ABG Painting & Handyman", category:"Painters", website:"https://abgpainting.com", phone:"5124971359" },
+  { id:'m_124', name:"Paintegrity", category:"Painters", website:"https://www.paintegrityllc.com/", phone:"5128882743" },
+  // HANDYMAN
+  { id:'m_125', name:"AJ's Handy Husband", category:"Handyman", phone:"2812237756", email:"ajshandyhusband@gmail.com" },
+  { id:'m_126', name:"U Know the Drill", category:"Handyman", phone:"5126366779", email:"uknowthedrillatx@gmail.com" },
+  { id:'m_127', name:"Melody Lane Home Pros", category:"Handyman", website:"http://melodylanepros.com", phone:"5128873370", email:"Vendors@melodylanepros.com" },
+  { id:'m_128', name:"The Habitat Heroes", category:"Handyman", website:"https://www.austintxhandyman.com", phone:"5122284851", email:"thehabitatheroes@gmail.com" },
+  { id:'m_129', name:"Sanders Handyman Services", category:"Handyman", website:"https://www.sandershandymanservices.com/", phone:"5124203467", email:"chrisssanders8827@gmail.com" },
+  // BATHROOM REMODELING
+  { id:'m_130', name:"Proper 3 Renovations", category:"Bathroom Remodeling", website:"https://www.austinnewhomesandrenovations.com", phone:"5125884550" },
+  { id:'m_131', name:"MGID", category:"Bathroom Remodeling", website:"https://mgidllc.org", phone:"5127451830", email:"coltonsmith@mgidllc.org" },
+  { id:'m_132', name:"Impact Building", category:"Bathroom Remodeling", website:"http://www.ibuildwithimpact.com", phone:"5123645350", email:"info@ibuildwithimpact.com" },
+  { id:'m_133', name:"CenTex Bath", category:"Bathroom Remodeling", website:"https://www.magccollc.com", phone:"5125921203", email:"alan@centex-bath.com" },
+  { id:'m_134', name:"Palacios Remodeling", category:"Bathroom Remodeling", phone:"2547178530", email:"palaciosremodelingllc254@gmail.com" },
+  { id:'m_135', name:"Modern Home Transformations", category:"Bathroom Remodeling", website:"https://mht512.com", phone:"5127616153", email:"Jason@mht512.com" },
+  // ============ SESSION 3 SCRAPE (Apr 22 2026) ============
+  // KITCHEN REMODELING
+  { id:"m_136", name:"Capitol Design", category:"Kitchen Remodeling", website:"https://www.capitoldesign.us", phone:"5124641155", email:"joe@capitoldesign.us" },
+  // LANDSCAPING
+  { id:"m_137", name:"TRUCARE Home Improvement", category:"Landscaping", website:"http://www.trucarehome.com", phone:"2069109549", email:"bpaularland@hotmail.com" },
+  { id:"m_138", name:"Earth In Motion Inc.", category:"Landscaping", website:"https://www.eimtxcorp.com", phone:"5128508660", email:"cburnell@eimtxcorp.com" },
+  { id:"m_139", name:"Lone Star Turf", category:"Landscaping", website:"https://lsturf.com", phone:"5126969392", email:"patrick@lsturf.com" },
+  { id:"m_140", name:"Turf In ATX", category:"Landscaping", website:"https://www.turfinatx.com", phone:"7372758301", email:"info@turfinatx.com" },
+  { id:"m_141", name:"TopGrass Modern Landscapes", category:"Landscaping", website:"https://www.topgrassmodernlandscapes.com", phone:"5127185260", email:"TopGrasslandscape@gmail.com" },
+  { id:"m_142", name:"Southern Love Landscaping & Design", category:"Landscaping", website:"https://southernlovelandscaping.com", phone:"4692377137", email:"nikk@southernlovelandscaping.com" },
+  { id:"m_143", name:"Loma Verde", category:"Landscaping", website:"https://lomaverdeatx.com", phone:"5129529906", email:"luis@lomaverdeatx.com" },
+  { id:"m_144", name:"Texas Twins Contractors", category:"Landscaping", website:"https://texas-twins.net", phone:"5125742312" },
+  { id:"m_145", name:"Austin Turf Pros", category:"Landscaping", phone:"5126496842", email:"omarfdz84@gmail.com" },
+  { id:"m_146", name:"RcTex Pavers & Hardscapes", category:"Landscaping", website:"https://www.rctexpavers.com", phone:"7377041473", email:"rob@rctexpavers.com" },
+  { id:"m_147", name:"Texas Raised Gardens", category:"Landscaping", website:"https://www.texasraisedgardens.com", phone:"5122002704", email:"hilary@texasraisedgardens.com" },
+  { id:"m_148", name:"Finch Design Group", category:"Landscaping", website:"http://finchdg.com", phone:"5124175800", email:"mckay@finchdg.com" },
+  { id:"m_149", name:"Austin Gardeners", category:"Landscaping", website:"https://www.austingardenerstx.com", phone:"5128451531", email:"austingardeners@gmail.com" },
+  { id:"m_150", name:"Consul Outdoors", category:"Landscaping", website:"http://consuloutdoors.com", phone:"7026105103", email:"info@consuloutdoors.com" },
+  { id:"m_151", name:"Lion Painting & Services", category:"Landscaping", phone:"5128106854", email:"Lionpaintandservices@gmail.com" },
+  { id:"m_152", name:"Jays Landscaping Services", category:"Landscaping", phone:"3528882601", email:"kaiconsulting1616@yahoo.com" },
+  { id:"m_153", name:"Sullivan's Landscaping & Lawn Service", category:"Landscaping", website:"https://www.sullivanslandscapingservice.com", phone:"5125994565", email:"customerservice@sullivanslandscapingservice.com" },
+  { id:"m_154", name:"Evergreen ATX", category:"Landscaping", website:"https://www.evergreenatx.pro", phone:"7378881087", email:"evergreenatx@gmail.com" },
+  { id:"m_155", name:"Rockin L Land Services", category:"Landscaping", phone:"5127043917", email:"rockingllandservices@gmail.com" },
+  { id:"m_156", name:"Texas Landscaping Company", category:"Landscaping", website:"https://www.texaslandscapingco.com/", phone:"2108021766" },
+  { id:"m_157", name:"Champion Outdoor Solutions", category:"Landscaping", phone:"5126996575", email:"sales@championoutdoorsolutions.com" },
+  // CONCRETE
+  { id:"m_158", name:"Capital Construction Stucco & Masonry LLC", category:"Concrete", phone:"5129883666", email:"Rodriguez92_construction@yahoo.com" },
+  { id:"m_159", name:"Outdoor Living Care", category:"Concrete", website:"https://outdoorlivingcare.com", phone:"5128092143", email:"jared@outdoorlivingcare.com" },
+  { id:"m_160", name:"AJ's Concrete", category:"Concrete", phone:"5128090512", email:"ajconcrete10@gmail.com" },
+  { id:"m_161", name:"Concrete Unlimited LLC", category:"Concrete", phone:"7138351411", email:"Brian@concrete-unlimited.com" },
+  { id:"m_162", name:"4B Construction", category:"Concrete", phone:"4696882649", email:"rustybryantfire@gmail.com" },
+  { id:"m_163", name:"Texas First Concrete", category:"Concrete", phone:"5126358573", email:"jsandoval@texasfirstconcrete.com" },
+  { id:"m_164", name:"Austin Little Batches", category:"Concrete", website:"https://little-batches.com", phone:"5128776656", email:"nick@little-batches.com" },
+  { id:"m_165", name:"GTO Concrete", category:"Concrete", website:"https://www.gtoconcretellc.net", phone:"5127053527" },
+  { id:"m_166", name:"Superior Concrete Construction", category:"Concrete", phone:"2104899460", email:"Lorenzo@superiorconcretetx.com" },
+  { id:"m_167", name:"ScanXConcrete", category:"Concrete", website:"https://www.scanxconcrete.com", phone:"5128289904", email:"sales@scanxconcrete.com" },
+  { id:"m_168", name:"EP Concrete & Construction", category:"Concrete", website:"https://epconcrete.com", phone:"5129983199", email:"perezconcreteconstruction@gmail.com" },
+  { id:"m_169", name:"TRUE Construction LLC", category:"Concrete", website:"http://trueconstructiontx.com", phone:"7373629471", email:"uzziah.rodriguez@trueconstructiontx.com" },
+  { id:"m_170", name:"LJM Concrete", category:"Concrete", website:"http://ljmconcrete.com", phone:"5127037105", email:"alonso@ljmconcrete.com" },
+  { id:"m_171", name:"Winsome Concrete Finishes", category:"Concrete", phone:"5128003282", email:"jesus@winsomeconcretefinishes.com" },
+  { id:"m_172", name:"Terrazas of Texas", category:"Concrete", phone:"5122179460", email:"yari@terrazasoftexas.com" },
+  { id:"m_173", name:"NS Concrete", category:"Concrete", phone:"5122870554", email:"starconcretetexas@gmail.com" },
+  { id:"m_174", name:"Stealth Civil Contracting", category:"Concrete", phone:"5129229215", email:"stealthcivilatx@gmail.com" },
+  { id:"m_175", name:"HT Concrete & Excavation", category:"Concrete", phone:"5126359105" },
+  // DRYWALL
+  { id:"m_176", name:"LT Renovations", category:"Drywall", website:"https://www.ltrenovations94.com", phone:"5123791011" },
+  // GUTTERS
+  { id:"m_177", name:"All Seamless Rain Gutters", category:"Gutters", website:"https://www.allseamlessraingutters.com", phone:"5122565556" },
+  { id:"m_178", name:"Captain Gutters", category:"Gutters", phone:"7373576460", email:"zimrirodriguez@captaingutters.com" },
+  { id:"m_179", name:"Tyler Smith", category:"Gutters", phone:"5128819204", email:"srgspros@gmail.com" },
+  // FENCES
+  { id:"m_180", name:"Buda Fence Company", category:"Fences", website:"https://www.budafenceco.com", phone:"5127107116" },
+  { id:"m_181", name:"Code 3 Fence Solutions", category:"Fences", phone:"5122229149" },
+  { id:"m_182", name:"Big Brown Fence", category:"Fences", phone:"7372680639", email:"aebrown1986@gmail.com" },
+  { id:"m_183", name:"G Square Consulting Custom Fence Solutions", category:"Fences", website:"https://www.g-square.info", phone:"5126675510" },
+  { id:"m_184", name:"JIGH Siding & Cornice", category:"Fences", website:"https://www.jighsiding.com/home", phone:"7373461371", email:"erickglz512@gmail.com" },
+  { id:"m_185", name:"TEJON FENCING PRO", category:"Fences", phone:"5129813466", email:"mayravaladez118@gmail.com" },
+  { id:"m_186", name:"MH Site Solutions", category:"Fences", website:"https://www.mhsitesolution.com", phone:"5129949976", email:"MHsitesolutions@gmail.com" },
+  { id:"m_187", name:"GTX Fence", category:"Fences", website:"https://www.gtxfence.com", phone:"5122039521", email:"gtxfence@gmail.com" },
+  { id:"m_188", name:"Watson Construction", category:"Fences", phone:"5129050036", email:"watsonconstruction87@gmail.com" },
+  { id:"m_189", name:"Mighty Fence Co", category:"Fences", website:"https://www.mightyfenceco.com", phone:"5128250741" },
+  { id:"m_190", name:"Precision Services of Austin", category:"Fences", website:"https://precisionservicesofaustin.com", phone:"5128565080" },
+  // DECKS
+  { id:"m_191", name:"Creative Timber", category:"Decks", website:"https://creativetimber.net/home", phone:"5128443873", email:"Anthonyconnell24@gmail.com", featured:true },
+  { id:"m_192", name:"Austin Deck Company", category:"Decks", website:"https://www.austindeck.com/", phone:"5126598695", email:"jennifer@austindeck.com" },
+  // BUILDERS
+  { id:"m_193", name:"True Home Construction", category:"Builders", website:"https://truehomeconstructiontx.com", phone:"7373336373" },
+  { id:"m_194", name:"Supreme Builders Group", category:"Builders", website:"https://www.supremebuildersgroup.com", phone:"5126553629", email:"Info@supremebuildersgroup.com" },
+  { id:"m_195", name:"Quarter Mile Builder", category:"Builders", website:"https://qmbuilder.com", phone:"5129000708", email:"david@qmbuilder.com" },
+  { id:"m_196", name:"Texas Metal Structures", category:"Builders", website:"https://texasbestroofingco.com", phone:"9792137022", email:"tracey@texasmetalstructures.com" },
+  { id:"m_197", name:"AGC Design", category:"Builders", website:"https://www.agc.design", phone:"5122003474", email:"ryan.carretta@agc.design" },
+  { id:"m_198", name:"McCall Custom Homes", category:"Builders", website:"https://mccallcustomhomesatx.com", phone:"5126339580", email:"mike@mccallcustomhomes.com" },
+  // HOME INSPECTORS
+  { id:"m_199", name:"Diamond Head Inspection Services", category:"Home Inspectors", website:"https://www.diamondheadinspectionservices.com", phone:"7376002949", email:"phil.wistner@dhinspects.com" },
+  // INTERIOR DESIGN
+  { id:"m_200", name:"Stellar Interiors By Teouna", category:"Interior Design", website:"https://stellarinteriorsbyteouna.com", phone:"6827771400", email:"stellarinteriorsbyteouna@gmail.com" },
+  { id:"m_201", name:"River Jane & Co", category:"Interior Design", phone:"9193372091", email:"riverjaneandco@gmail.com" },
+  { id:"m_202", name:"Haus Collective ATX", category:"Interior Design", website:"https://hauscollectiveatx.com", phone:"5127020455", email:"heather@hauscollectiveatx.com" },
+  { id:"m_203", name:"Madam Rose Solutions LLC", category:"Interior Design", website:"http://madamrosesolutions.com", phone:"5127340055", email:"info@madamrosesolutions.com" },
+  // CABINET COMPANIES
+  { id:"m_204", name:"Farmhouse 77 Custom Woodworks", category:"Cabinet Companies", phone:"5122932875" },
+  { id:"m_205", name:"Ikigai Woodworks", category:"Cabinet Companies", website:"https://mysite.localsplash.com/site/a60136cc/", phone:"2102884907", email:"ikigaiwoodworks@outlook.com" },
+  { id:"m_206", name:"Premier Installations", category:"Cabinet Companies", phone:"7372704718", email:"premierinstallations4@gmail.com" },
+  { id:"m_207", name:"Peterson Woodworks TX", category:"Cabinet Companies", website:"https://petersonwoodworkstx.com", phone:"5129140898", email:"petersonwoodworkstx@yahoo.com" },
+  { id:"m_208", name:"American Arbor Line", category:"Cabinet Companies", website:"https://www.americanarborline.com", phone:"8664837284", email:"wes.baldwin@americanarborline.com" },
+  { id:"m_209", name:"Innosaw", category:"Cabinet Companies", website:"https://www.innosaw.com", phone:"7374448004" },
+  { id:"m_210", name:"Texas Cabinetry Co.", category:"Cabinet Companies", website:"https://texascabinetryco.com", phone:"5125606103" },
+  { id:"m_211", name:"Renew Medic by RNW", category:"Cabinet Companies", website:"http://renewmedic.com", phone:"5128061506", email:"daniel.monson@renewmedic.com" },
+  // WINDOWS
+  { id:"m_212", name:"Clean Cut Windows & Doors", category:"Windows", website:"https://cleancutwindows.com", phone:"5126754952", email:"chris@cleancutwindows.com" },
+  { id:"m_213", name:"Texas Choice Windows & Doors", category:"Windows", phone:"5123503374", email:"jhorne.service@gmail.com" },
+  // COUNTERTOPS
+  { id:"m_214", name:"HSC Countertops", category:"Countertops", website:"https://hscremodelingandconstruction.com/", phone:"5129136538" },
+  { id:"m_215", name:"JLC Granite and Quartz Countertops", category:"Countertops", phone:"5123186124", email:"cruzgarciaj406@gmail.com" },
+  { id:"m_216", name:"Modern Stoneworks", category:"Countertops", website:"https://www.modernstoneworkstx.com/", phone:"5122754359", email:"info@modernstoneworkstx.com" },
+  // AV LOW VOLTAGE
+  { id:"m_217", name:"Red & Blue Telecom", category:"AV Low Voltage", website:"https://www.redandbluetelecom.com", phone:"5122004064", email:"kevin.h@redandbluetelecom.com" },
+  // DAMAGE RESTORATION
+  { id:"m_218", name:"Best Option Restoration", category:"Damage Restoration", website:"https://www.borestoration-traviscounty.com", phone:"7372105140" },
+  { id:"m_219", name:"PROCO Roofing & Construction", category:"Damage Restoration", website:"https://procoroof.com", phone:"8334677626" },
+  // POOL BUILDERS
+  { id:"m_220", name:"Swim Time Pool Co.", category:"Pool Builders", website:"https://swimtimepoolcompany.com", phone:"7374842949" },
+  { id:"m_221", name:"Blue Springs Pool & Construction", category:"Pool Builders", website:"https://www.bluespringspc.com", phone:"5125666009" },
+  { id:"m_222", name:"Watercolor Pools", category:"Pool Builders", website:"http://watercolorpools.com", phone:"2543178260", email:"bryson@watercolorpools.com" },
+  // MASONRY
+  { id:"m_223", name:"Nick's Bricks Masonry & Stone", category:"Masonry", website:"https://www.nicksbricksmasonryandstone.com", phone:"5127507872", email:"nick.nicksbricks@austin.rr.com" },
+  { id:"m_224", name:"A's Custom Masonry", category:"Masonry", phone:"5128658908", email:"ascustommasonryllc@gmail.com" },
+  { id:"m_225", name:"Texas Rock Solid Building Services", category:"Masonry", website:"https://texasrocksolid.com", phone:"5122443612", email:"mattc@texasrocksolid.com" },
+  { id:"m_226", name:"B & C Masonry", category:"Masonry", website:"https://bandcmasonry.com", phone:"5126699414" },
+  { id:"m_227", name:"Luna Masonry & Fine Stonework", category:"Masonry", phone:"5125668342" },
+  { id:"m_228", name:"Acosta's Tree Service & Masonry", category:"Masonry", phone:"5124064324", email:"jacosta469@yahoo.com" },
+  { id:"m_229", name:"Guzmans Landscaping Services", category:"Masonry", phone:"7372308466" },
+  // SIDING
+  { id:"m_230", name:"Brightwing Custom", category:"Siding", website:"https://brightwingcustom.com", phone:"5123230124", email:"info@brightwingcustom.com" },
+  // ENGINEERS
+  { id:"m_231", name:"Urban Building Services of Texas", category:"Engineers", website:"https://www.ubstx.com", phone:"5129203439", email:"jon@ubstx.com" },
+  { id:"m_232", name:"Ökkem Design + Engineering", category:"Engineers", website:"https://www.okkemdesign.com", phone:"5128949222", email:"chris@okkemdesign.com" },
+  // PEST CONTROL
+  { id:"m_233", name:"Impact Pest Services", category:"Pest Control", website:"https://impactpestco.com", phone:"5128383675" },
+  // WATERPROOFING
+  { id:"m_234", name:"Premier Nano Coatings", category:"Waterproofing", website:"https://www.premiernanocoatings.com/", phone:"5129142661", email:"premiernanocoatings@gmail.com" },
+  // INSULATION
+  { id:"m_235", name:"Infinity Spray Foam", category:"Insulation", website:"https://infinitysprayfoam.com", phone:"5126741567", email:"infinitysprayfoam@outlook.com" },
+  { id:"m_236", name:"Premium Spray Foam & Insulation Services", category:"Insulation", website:"https://premium-spray-foam-insulation-services.business.site", phone:"5127011294", email:"premiumenergysavers@gmail.com" },
+  { id:"m_237", name:"Stellr Insulation", category:"Insulation", phone:"5125200044", email:"shawn@stellrr.com" },
+  // GARAGE DOORS
+  { id:"m_238", name:"Leander Overhead Doors", category:"Garage Doors", phone:"5124125928", email:"leanderoverheaddoors@gmail.com" },
+  { id:"m_239", name:"Two Brothers Garage Doors", category:"Garage Doors", phone:"5123090852", email:"tylerc.gds@gmail.com" },
+  { id:"m_240", name:"AG Pro Garage Doors", category:"Garage Doors", website:"http://agprogaragedoors.com", phone:"5123007101", email:"alberto@agprogaragedoors.com" },
+  // PRESSURE WASHING
+  { id:"m_241", name:"Rolling Suds", category:"Pressure Washing", website:"https://rollingsudspowerwashing.com/austin-san-marcos/", phone:"5122715777" },
+  // PUBLIC ADJUSTERS
+  { id:"m_242", name:"Insurance Claim Hero", category:"Public Adjusters", website:"https://insuranceclaimhero.org", phone:"5129569557", email:"andy@insuranceclaimhero.org" },
+  // WATER DAMAGE RESTORATION
+  { id:"m_243", name:"Affordable Restoration Austin", category:"Water Damage Restoration", website:"https://fixatx.com", phone:"7372059105" },
+  { id:"m_244", name:"All Done Construction", category:"Water Damage Restoration", website:"http://alldoneconstruction.com", phone:"5125165038" },
+  { id:"m_245", name:"TJ Renovate Restoration + Remodeling", category:"Water Damage Restoration", website:"https://www.tjrenovate.com", phone:"5128000231" },
+  { id:"m_246", name:"Innovation Blue, LLC", category:"Water Damage Restoration", email:"arcadio.ramirezinnovationblue@gmail.com" },
+];
+
+const EXCLUSIVE_PARTNERS = [
+  { id:'liz-rich', name:'Liz Rich', specialty:'Mortgage Lending', company:'Lending by Liz', tagline:'Your Trusted Mortgage Partner for Smarter Homeownership', description:"Liz delivers clarity, confidence, and tailored mortgage solutions for homeowners, investors, and builders across Central Texas. With transparency and exceptional service, Liz guides clients through every step of the lending process — ensuring deals close smoothly and on time.", badge:'Trusted. Knowledgeable. Community-focused.', website:'https://lendingbyliz.com', phone:'', email:'', imageUrl:'https://static.wixstatic.com/media/4e462c_8ed4337d9fce45c0907e6048822918b8~mv2.webp', initials:'LR', color:'bg-amber-500' },
+  { id:'tamberyne-mccutcheon', name:'Tamberyne McCutcheon', specialty:'Hard Money Lending', company:'Conventus', tagline:"Fueling Austin's builders, flippers, and investors with strategic capital", description:'Tamberyne is the hard money partner investors rely on when speed, precision, and deal structure matter most. Backed by Conventus, she provides fast approvals, flexible financing, and tailored loan solutions for flips, new construction, and long-term rental portfolios.', badge:'Fast approvals. Flexible financing.', website:'https://linktr.ee/tamberyne_realestate_lending', phone:'', email:'', imageUrl:'https://static.wixstatic.com/media/4e462c_827965901675489db0b1faa46997f989~mv2.png', initials:'TM', color:'bg-emerald-600' },
+  { id:'hunter-ciaccio', name:'Hunter Ciaccio', specialty:'Insurance', company:'Goosehead Insurance', tagline:'Your go-to expert for smarter, stronger homeowner coverage', description:"Hunter is the insurance professional homeowners and contractors trust when they need clarity, honest guidance, and protection that actually works. Specializing in roofing, water damage, and high-risk policy reviews.", badge:'Real protection. Fast response.', website:'', phone:'512-571-2389', email:'', imageUrl:'https://static.wixstatic.com/media/4e462c_fce239f42cf54e39817edeedd2ca3bf6~mv2.png', initials:'HC', color:'bg-blue-600' },
+  { id:'sierra-chapa', name:'Sierra Chapa', specialty:'Exclusive Partner', company:'', tagline:'Trusted CV Exclusive Partner', description:"A vetted Contractor Verified Exclusive Partner committed to the CV mission of excellence and reliability. Details coming soon.", badge:'Hand-selected. Highly vetted.', website:'', phone:'', email:'', imageUrl:'', initials:'SC', color:'bg-purple-600', needsUpdate:true },
+  { id:'kingmaker-tax', name:'Kingmaker Tax Advisors', specialty:'Tax Strategy & Business Growth', company:'Kingmaker Tax Advisors', tagline:'Your Strategic Partner for Tax Strategy and Business Growth', description:'Going beyond traditional accounting, Kingmaker specializes in helping entrepreneurs and growing companies keep more of what they earn through proactive tax strategy, financial planning, and long-term wealth positioning.', badge:'Proactive strategy. Long-term wealth.', website:'https://kingmakerta.com', phone:'', email:'', imageUrl:'https://static.wixstatic.com/media/4e462c_0b696322ab3d4a01ae8ca0771aed0614~mv2.webp', initials:'KT', color:'bg-stone-800' }
+];
+
+const ADMIN_EMAIL = 'admin@contractorverified.com';
+const ADMIN_PASSWORD = 'admin123';
+const ADMIN_ID = 'admin';
+
+// Normalize phone for display
+const fmtPhone = (p) => {
+  if (!p) return '';
+  const digits = p.replace(/\D/g, '');
+  if (digits.length === 10) return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+  if (digits.length === 11) return `+${digits[0]} (${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
+  return p;
+};
+
+export default function ContractorVerifiedApp() {
+  const [role, setRole] = useState(null);
+  const [user, setUser] = useState(null);
+  const [screen, setScreen] = useState('login');
+  const [authMode, setAuthMode] = useState('login');
+  const [leads, setLeads] = useState([]);
+  const [referrals, setReferrals] = useState([]);
+  const [usersList, setUsersList] = useState([]);
+  const [members, setMembers] = useState(SEED_MEMBERS);
+  const [profiles, setProfiles] = useState({});
+  const [reviews, setReviews] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [conversations, setConversations] = useState({});
+  const [partnerEdits, setPartnerEdits] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedPartner, setSelectedPartner] = useState(null);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [selectedContractor, setSelectedContractor] = useState(null);
+  const [activeConvoKey, setActiveConvoKey] = useState(null);
+  const [messageDraft, setMessageDraft] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
+  const [directorySearch, setDirectorySearch] = useState('');
+  const [directoryCategory, setDirectoryCategory] = useState('All');
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+
+  const [authForm, setAuthForm] = useState({ email:'', password:'', name:'', businessName:'', categories:[] });
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [homeownerForm, setHomeownerForm] = useState({ zip:'', category:'', scope:'', timeline:'' });
+  const [realtorForm, setRealtorForm] = useState({ clientName:'', clientPhone:'', clientEmail:'', category:'', notes:'' });
+  const [reviewForm, setReviewForm] = useState({ rating:5, comment:'', photos:[] });
+  const [profileEditForm, setProfileEditForm] = useState(null);
+  const [adminFilter, setAdminFilter] = useState('all');
+  const [importJson, setImportJson] = useState('');
+  const [importStatus, setImportStatus] = useState('');
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const keys = ['leads','referrals','users','profiles','reviews','notifications','conversations','partner_edits','members'];
+        const results = await Promise.all(keys.map(k => window.storage.get(k, true).catch(() => null)));
+        const [l, r, u, p, rv, n, c, pe, m] = results;
+        if (l) setLeads(JSON.parse(l.value));
+        if (r) setReferrals(JSON.parse(r.value));
+        if (u) setUsersList(JSON.parse(u.value));
+        if (p) setProfiles(JSON.parse(p.value));
+        if (rv) setReviews(JSON.parse(rv.value));
+        if (n) setNotifications(JSON.parse(n.value));
+        if (c) setConversations(JSON.parse(c.value));
+        if (pe) setPartnerEdits(JSON.parse(pe.value));
+        if (m) setMembers(JSON.parse(m.value)); else setMembers(SEED_MEMBERS);
+      } catch (e) {}
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(async () => {
+      try {
+        const [c, n] = await Promise.all([
+          window.storage.get('conversations', true).catch(() => null),
+          window.storage.get('notifications', true).catch(() => null),
+        ]);
+        if (c) setConversations(JSON.parse(c.value));
+        if (n) setNotifications(JSON.parse(n.value));
+      } catch (e) {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  useEffect(() => {
+    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior:'smooth' });
+  }, [activeConvoKey, conversations]);
+
+  const save = async (key, data, setter) => {
+    setter(data);
+    try { await window.storage.set(key, JSON.stringify(data), true); } catch(e) {}
+  };
+  const saveLeads = d => save('leads', d, setLeads);
+  const saveReferrals = d => save('referrals', d, setReferrals);
+  const saveUsers = d => save('users', d, setUsersList);
+  const saveProfiles = d => save('profiles', d, setProfiles);
+  const saveReviews = d => save('reviews', d, setReviews);
+  const saveNotifications = d => save('notifications', d, setNotifications);
+  const saveConversations = d => save('conversations', d, setConversations);
+  const savePartnerEdits = d => save('partner_edits', d, setPartnerEdits);
+  const saveMembers = d => save('members', d, setMembers);
+
+  const pushNotif = async (targets, message, type='info') => {
+    const now = new Date().toISOString();
+    const newNotifs = targets.map((t,i) => ({ id:`n_${Date.now()}_${i}_${Math.random()}`, userId:t.userId||null, targetRole:t.role, message, type, createdAt:now, read:false }));
+    await saveNotifications([...newNotifs, ...notifications]);
+  };
+
+  const myNotifications = user ? notifications.filter(n =>
+    (n.userId && n.userId === user.id) ||
+    (n.targetRole === 'admin' && role === 'admin') ||
+    (n.targetRole === role && !n.userId)
+  ) : [];
+  const unreadCount = myNotifications.filter(n => !n.read).length;
+
+  const markAllRead = async () => {
+    const updated = notifications.map(n => {
+      const isMine = (n.userId && n.userId === user.id) ||
+        (n.targetRole === 'admin' && role === 'admin') ||
+        (n.targetRole === role && !n.userId);
+      return isMine ? {...n, read:true} : n;
+    });
+    await saveNotifications(updated);
+  };
+
+  const getConvoKey = (a,b) => [a,b].sort().join('__');
+  const openConversation = (otherId) => {
+    const key = getConvoKey(user.id, otherId);
+    if (!conversations[key]) saveConversations({ ...conversations, [key]: { participants:[user.id, otherId], messages:[] }});
+    setActiveConvoKey(key);
+    setScreen('chat');
+    markMessagesRead(key);
+  };
+  const markMessagesRead = async (key) => {
+    const convo = conversations[key];
+    if (!convo) return;
+    await saveConversations({ ...conversations, [key]: { ...convo, messages: convo.messages.map(m => m.senderId !== user.id ? {...m, read:true} : m) }});
+  };
+  const sendMessage = async () => {
+    if (!messageDraft.trim() || !activeConvoKey) return;
+    const convo = conversations[activeConvoKey];
+    const otherId = convo.participants.find(p => p !== user.id);
+    const newMsg = { id:`m_${Date.now()}`, senderId:user.id, senderName:user.name, text:messageDraft.trim(), createdAt:new Date().toISOString(), read:false };
+    await saveConversations({ ...conversations, [activeConvoKey]: { ...convo, messages:[...convo.messages, newMsg] }});
+    setMessageDraft('');
+    if (otherId === ADMIN_ID) await pushNotif([{ role:'admin' }], `New message from ${user.name}`, 'message');
+    else await pushNotif([{ userId:otherId }], `New message from ${user.name}`, 'message');
+  };
+  const getMyConversations = () => Object.entries(conversations)
+    .filter(([k,c]) => c.participants.includes(user.id))
+    .map(([key,c]) => {
+      const otherId = c.participants.find(p => p !== user.id);
+      const other = otherId === ADMIN_ID ? { id:ADMIN_ID, name:'Contractor Verified Team', role:'admin', isSupport:true } : usersList.find(u => u.id === otherId);
+      if (!other) return null;
+      const lastMsg = c.messages[c.messages.length-1];
+      const unread = c.messages.filter(m => m.senderId !== user.id && !m.read).length;
+      return { key, other, lastMsg, unread };
+    }).filter(Boolean).sort((a,b) => (b.lastMsg ? new Date(b.lastMsg.createdAt).getTime() : 0) - (a.lastMsg ? new Date(a.lastMsg.createdAt).getTime() : 0));
+  const totalUnreadMessages = user ? getMyConversations().reduce((s,c) => s + c.unread, 0) : 0;
+
+  const handleLogin = async () => {
+    setAuthError('');
+    if (role === 'admin') {
+      if (authForm.email === ADMIN_EMAIL && authForm.password === ADMIN_PASSWORD) {
+        setUser({ email:ADMIN_EMAIL, name:'Travis (Admin)', role:'admin', id:ADMIN_ID });
+        setScreen('home');
+        setAuthForm({ email:'', password:'', name:'', businessName:'', categories:[] });
+      } else setAuthError('Invalid admin credentials. Demo: admin@contractorverified.com / admin123');
+      return;
+    }
+    const found = usersList.find(u => u.email === authForm.email && u.password === authForm.password && u.role === role);
+    if (found) { setUser(found); setScreen('home'); setAuthForm({ email:'', password:'', name:'', businessName:'', categories:[] }); }
+    else setAuthError('Account not found. Check email/password or create an account.');
+  };
+
+  const handleSignup = async () => {
+    setAuthError('');
+    if (!authForm.email || !authForm.password || !authForm.name) { setAuthError('Please fill in all required fields.'); return; }
+    if (authForm.password.length < 4) { setAuthError('Password must be at least 4 characters.'); return; }
+    if (usersList.find(u => u.email === authForm.email && u.role === role)) { setAuthError('An account with this email already exists.'); return; }
+    if (role === 'contractor' && authForm.categories.length === 0) { setAuthError('Please select at least one service category.'); return; }
+    const newUser = { id:`user_${Date.now()}`, email:authForm.email, password:authForm.password, name:authForm.name, businessName:authForm.businessName, categories:authForm.categories, role, createdAt:new Date().toISOString() };
+    await saveUsers([...usersList, newUser]);
+    if (role === 'contractor') {
+      await saveProfiles({ ...profiles, [newUser.id]: { userId:newUser.id, businessName:authForm.businessName, tagline:'', bio:'', phone:'', email:authForm.email, website:'', photos:[], videos:[], yearsInBusiness:'', licensed:true, insured:true, categories:authForm.categories }});
+    }
+    await pushNotif([{ role:'admin' }], `New ${role} signup: ${newUser.name}`, 'signup');
+    setUser(newUser);
+    setScreen('home');
+    setAuthForm({ email:'', password:'', name:'', businessName:'', categories:[] });
+  };
+
+  const logout = () => { setUser(null); setRole(null); setScreen('login'); setAuthMode('login'); setAuthError(''); setShowNotifPanel(false); setActiveConvoKey(null); };
+
+  const submitHomeownerRequest = async () => {
+    const newLead = { id:`lead_${Date.now()}`, type:'homeowner', userId:user.id, name:user.name, email:user.email, ...homeownerForm, status:'new', createdAt:new Date().toISOString() };
+    await saveLeads([newLead, ...leads]);
+    const matches = usersList.filter(u => u.role === 'contractor' && u.categories.includes(homeownerForm.category));
+    await pushNotif([ ...matches.map(m => ({ userId:m.id })), { role:'admin' } ], `New ${homeownerForm.category} lead in ${homeownerForm.zip}`, 'lead');
+    setScreen('ho-success');
+  };
+
+  const submitRealtorReferral = async () => {
+    const newRef = { id:`ref_${Date.now()}`, type:'realtor', userId:user.id, realtorName:user.name, ...realtorForm, status:'new', createdAt:new Date().toISOString() };
+    await saveReferrals([newRef, ...referrals]);
+    await pushNotif([{ role:'admin' }], `Referral from ${user.name}: ${realtorForm.clientName}`, 'referral');
+    setScreen('rl-success');
+  };
+
+  const updateLeadStatus = async (leadId, status) => {
+    const updated = leads.map(l => l.id === leadId ? {...l, status, acceptedBy: status === 'accepted' ? user.id : l.acceptedBy} : l);
+    await saveLeads(updated);
+    const lead = updated.find(l => l.id === leadId);
+    if (selectedLead && selectedLead.id === leadId) setSelectedLead(lead);
+    if (status === 'accepted' && lead?.userId) await pushNotif([{ userId:lead.userId }], `${user.businessName || user.name} accepted your request!`, 'accepted');
+    if (status === 'completed' && lead?.userId) await pushNotif([{ userId:lead.userId }], `Job completed! Please leave a review.`, 'review_request');
+  };
+
+  const submitReview = async (leadId, contractorId) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) return;
+    const newReview = { id:`rev_${Date.now()}`, leadId, contractorId, reviewerId:user.id, reviewerName:user.name, rating:reviewForm.rating, comment:reviewForm.comment, photos:reviewForm.photos, category:lead.category, createdAt:new Date().toISOString(), verified:true };
+    await saveReviews([newReview, ...reviews]);
+    await saveLeads(leads.map(l => l.id === leadId ? {...l, reviewed:true} : l));
+    await pushNotif([{ userId:contractorId }], `${user.name} left you a ${reviewForm.rating}-star review!`, 'review');
+    setReviewForm({ rating:5, comment:'', photos:[] });
+  };
+
+  const saveProfile = async () => { if (!profileEditForm) return; await saveProfiles({ ...profiles, [user.id]: profileEditForm }); setProfileEditForm(null); setScreen('home'); };
+
+  const handleFileUpload = (e, type) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => setProfileEditForm(prev => ({ ...prev, [type]: [...(prev[type]||[]), { id:Date.now()+Math.random(), url:ev.target.result }] }));
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const handleReviewPhotoUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => setReviewForm(prev => ({ ...prev, photos: [...prev.photos, { id:Date.now()+Math.random(), url:ev.target.result }] }));
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const importMembers = async () => {
+    setImportStatus('');
+    try {
+      const parsed = JSON.parse(importJson);
+      if (!Array.isArray(parsed)) { setImportStatus('Error: JSON must be an array of member objects.'); return; }
+      const next = [...members];
+      let added = 0;
+      for (const m of parsed) {
+        if (!m.name || !m.category) continue;
+        const id = m.id || `m_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+        if (next.find(x => x.name === m.name && x.category === m.category)) continue;
+        next.push({ ...m, id });
+        added++;
+      }
+      await saveMembers(next);
+      setImportStatus(`✓ Imported ${added} new members. Total: ${next.length}.`);
+      setImportJson('');
+    } catch (e) { setImportStatus(`Error parsing JSON: ${e.message}`); }
+  };
+
+  const getContractorReviews = (cid) => reviews.filter(r => r.contractorId === cid);
+  const getAvgRating = (cid) => { const r = getContractorReviews(cid); return r.length === 0 ? null : (r.reduce((s,x) => s+x.rating, 0) / r.length).toFixed(1); };
+
+  // ============ ROLE SELECTOR ============
+  if (!role) {
+    return (
+      <div className="min-h-screen bg-stone-950 flex items-center justify-center p-4" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-10">
+            <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center mx-auto mb-6">
+              <Shield className="w-7 h-7 text-stone-950" strokeWidth={2.5} />
+            </div>
+            <h1 className="text-5xl text-stone-100 leading-none">Contractor<br/>Verified</h1>
+            <p className="text-amber-500/80 text-sm tracking-widest uppercase mt-3" style={{fontFamily:"'Inter', sans-serif", letterSpacing:'0.2em'}}>Austin, TX</p>
+          </div>
+          <p className="text-stone-400 text-center mb-8 text-lg italic">Who are you today?</p>
+          <div className="space-y-3">
+            {[
+              { key:'homeowner', Icon:Home, label:'Homeowner', desc:'Find a vetted contractor' },
+              { key:'contractor', Icon:Hammer, label:'Contractor', desc:'Manage leads & profile' },
+              { key:'realtor', Icon:Briefcase, label:'Realtor', desc:'Refer a client' },
+              { key:'admin', Icon:BarChart3, label:'Admin', desc:'Manage the platform' },
+            ].map(({key,Icon,label,desc}) => (
+              <button key={key} onClick={() => { setRole(key); setScreen('login'); setAuthMode('login'); }}
+                className="w-full bg-stone-900 hover:bg-stone-800 border border-stone-800 hover:border-amber-500/50 p-5 rounded-2xl flex items-center gap-4 transition-all group">
+                <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center group-hover:bg-amber-500/20">
+                  <Icon className="w-6 h-6 text-amber-500" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="text-stone-100 text-xl">{label}</div>
+                  <div className="text-stone-500 text-sm" style={{fontFamily:"'Inter', sans-serif"}}>{desc}</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-stone-600 group-hover:text-amber-500" />
+              </button>
+            ))}
+          </div>
+          <p className="text-center text-stone-600 text-xs mt-10" style={{fontFamily:"'Inter', sans-serif"}}>Hire the pros the pros hire™</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ LOGIN ============
+  if (!user) {
+    const isAdmin = role === 'admin';
+    const filtered = CATEGORIES.filter(c => c.toLowerCase().includes(categorySearch.toLowerCase()));
+    return (
+      <div className="min-h-screen bg-stone-950 flex items-center justify-center p-4" style={{fontFamily:"'Inter', sans-serif"}}>
+        <div className="w-full max-w-sm">
+          <button onClick={() => { setRole(null); setAuthError(''); setAuthForm({ email:'', password:'', name:'', businessName:'', categories:[] }); }} className="text-stone-500 text-sm mb-6 flex items-center gap-1">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <div className="mb-6">
+            <div className="text-xs text-amber-500 uppercase tracking-widest mb-2">{role} portal</div>
+            <h1 className="text-4xl text-stone-100" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>{isAdmin ? 'Admin Sign In' : (authMode === 'login' ? 'Welcome back' : 'Create account')}</h1>
+            {isAdmin && <div className="mt-3 text-xs text-stone-500 bg-stone-900 border border-stone-800 rounded-lg p-3"><span className="text-amber-500/80">Demo:</span><br/>admin@contractorverified.com<br/>admin123</div>}
+          </div>
+          <div className="space-y-3">
+            {authMode === 'signup' && !isAdmin && (<>
+              <input placeholder="Full name" value={authForm.name} onChange={e => setAuthForm({...authForm, name:e.target.value})} className="w-full bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 text-stone-100 focus:border-amber-500 focus:outline-none placeholder:text-stone-600" />
+              {(role === 'contractor' || role === 'realtor') && <input placeholder={role === 'contractor' ? 'Business name' : 'Brokerage'} value={authForm.businessName} onChange={e => setAuthForm({...authForm, businessName:e.target.value})} className="w-full bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 text-stone-100 focus:border-amber-500 focus:outline-none placeholder:text-stone-600" />}
+            </>)}
+            <input type="email" placeholder="Email" value={authForm.email} onChange={e => setAuthForm({...authForm, email:e.target.value})} className="w-full bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 text-stone-100 focus:border-amber-500 focus:outline-none placeholder:text-stone-600" />
+            <div className="relative">
+              <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={authForm.password} onChange={e => setAuthForm({...authForm, password:e.target.value})} className="w-full bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 pr-12 text-stone-100 focus:border-amber-500 focus:outline-none placeholder:text-stone-600" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+            </div>
+            {authMode === 'signup' && role === 'contractor' && (
+              <div className="bg-stone-900 border border-stone-800 rounded-xl p-3">
+                <div className="text-sm text-stone-300 mb-2">Service categories ({authForm.categories.length})</div>
+                <input placeholder="Search..." value={categorySearch} onChange={e => setCategorySearch(e.target.value)} className="w-full bg-stone-950 border border-stone-800 rounded-lg px-3 py-2 text-stone-100 text-sm mb-2" />
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {filtered.slice(0,30).map(cat => (
+                    <label key={cat} className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer hover:bg-stone-800 rounded px-2 py-1">
+                      <input type="checkbox" checked={authForm.categories.includes(cat)} onChange={e => {
+                        if (e.target.checked) setAuthForm({...authForm, categories:[...authForm.categories, cat]});
+                        else setAuthForm({...authForm, categories:authForm.categories.filter(c => c !== cat)});
+                      }} className="accent-amber-500" />
+                      {cat}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            {authError && <div className="bg-red-950/50 border border-red-900 rounded-xl p-3 text-sm text-red-300 flex items-start gap-2"><AlertCircle className="w-4 h-4 mt-0.5" />{authError}</div>}
+            <button onClick={authMode === 'login' ? handleLogin : handleSignup} className="w-full bg-amber-500 hover:bg-amber-400 text-stone-950 py-4 rounded-xl font-semibold">{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
+            {!isAdmin && <button onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setAuthError(''); }} className="w-full text-stone-400 text-sm py-2 hover:text-amber-500">{authMode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}</button>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ FRAME ============
+  const PhoneFrame = ({ children, title, showBack=false, onBack, rightButton=null }) => (
+    <div className="min-h-screen bg-stone-100 flex items-center justify-center p-4" style={{fontFamily:"'Inter', sans-serif"}}>
+      <div className="w-full max-w-sm bg-stone-950 rounded-[2.5rem] p-3 shadow-2xl" style={{minHeight:'820px'}}>
+        <div className="bg-stone-50 rounded-[2rem] overflow-hidden relative" style={{minHeight:'800px'}}>
+          <div className="bg-stone-950 px-6 py-2 flex justify-between items-center text-xs text-stone-400"><span>9:41</span><span>Contractor Verified</span><span>100%</span></div>
+          <div className="bg-stone-950 text-stone-100 px-6 pb-4 pt-2 flex items-center gap-3">
+            {showBack && <button onClick={onBack} className="p-1 -ml-1"><ArrowLeft className="w-5 h-5" /></button>}
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-amber-500/80 uppercase tracking-wider">{user.name}</div>
+              <div className="text-xl text-stone-100 truncate" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>{title}</div>
+            </div>
+            {rightButton}
+            <button onClick={() => { setScreen('messages'); setActiveConvoKey(null); }} className="relative p-1 text-stone-400 hover:text-amber-500">
+              <MessagesSquare className="w-5 h-5" />
+              {totalUnreadMessages > 0 && <span className="absolute -top-0.5 -right-0.5 bg-amber-500 text-stone-950 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{totalUnreadMessages > 9 ? '9+' : totalUnreadMessages}</span>}
+            </button>
+            <button onClick={() => setShowNotifPanel(!showNotifPanel)} className="relative p-1 text-stone-400 hover:text-amber-500">
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 bg-amber-500 text-stone-950 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+            </button>
+            <button onClick={logout} className="text-stone-500 hover:text-amber-500"><LogOut className="w-4 h-4" /></button>
+          </div>
+          {showNotifPanel && (
+            <div className="absolute top-[90px] right-3 left-3 bg-white border border-stone-200 rounded-2xl shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between p-3 border-b border-stone-200">
+                <div className="text-sm font-semibold">Notifications</div>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && <button onClick={markAllRead} className="text-xs text-amber-600 font-semibold">Mark all read</button>}
+                  <button onClick={() => setShowNotifPanel(false)} className="text-stone-400"><X className="w-4 h-4" /></button>
+                </div>
+              </div>
+              <div className="overflow-y-auto">
+                {myNotifications.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-stone-500"><Bell className="w-8 h-8 text-stone-300 mx-auto mb-2" />No notifications yet.</div>
+                ) : myNotifications.slice(0,20).map(n => (
+                  <div key={n.id} className={`p-3 border-b border-stone-100 ${!n.read ? 'bg-amber-50' : ''}`}>
+                    <div className="flex items-start gap-2">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 ${!n.read ? 'bg-amber-500' : 'bg-transparent'}`} />
+                      <div className="flex-1 min-w-0"><div className="text-sm text-stone-800">{n.message}</div><div className="text-xs text-stone-400 mt-0.5">{new Date(n.createdAt).toLocaleString()}</div></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="overflow-y-auto" style={{maxHeight:'690px'}}>{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ============ MESSAGING ============
+  if (screen === 'messages') {
+    const myConvos = getMyConversations();
+    return (
+      <PhoneFrame title="Messages" showBack onBack={() => setScreen('home')} rightButton={<button onClick={() => setScreen('new-message')} className="p-1 text-stone-400 hover:text-amber-500"><Plus className="w-5 h-5" /></button>}>
+        <div className="p-5 space-y-2">
+          {myConvos.length === 0 ? (
+            <div className="text-center py-16"><MessagesSquare className="w-12 h-12 text-stone-300 mx-auto mb-3" /><div className="text-sm text-stone-500 mb-4">No conversations yet</div>
+              <button onClick={() => setScreen('new-message')} className="bg-stone-950 text-amber-500 px-4 py-2 rounded-xl text-sm font-semibold">Start a conversation</button>
+            </div>
+          ) : myConvos.map(({key, other, lastMsg, unread}) => (
+            <button key={key} onClick={() => openConversation(other.id)} className="w-full bg-white border border-stone-200 hover:border-amber-500 rounded-xl p-3 text-left flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold flex-shrink-0 ${other.isSupport ? 'bg-amber-500 text-stone-950' : 'bg-stone-700 text-white'}`}>
+                {other.isSupport ? <Shield className="w-5 h-5" /> : (other.businessName || other.name || 'U').substring(0,2).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-sm text-stone-900 truncate">{other.businessName || other.name}</div>
+                  {lastMsg && <div className="text-xs text-stone-400 ml-2">{new Date(lastMsg.createdAt).toLocaleDateString([], {month:'short', day:'numeric'})}</div>}
+                </div>
+                <div className="text-xs text-stone-500 capitalize">{other.isSupport ? 'CV Support' : other.role}</div>
+                {lastMsg && <div className={`text-xs mt-0.5 truncate ${unread > 0 ? 'text-stone-900 font-semibold' : 'text-stone-500'}`}>{lastMsg.senderId === user.id ? 'You: ' : ''}{lastMsg.text}</div>}
+              </div>
+              {unread > 0 && <div className="bg-amber-500 text-stone-950 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{unread}</div>}
+            </button>
+          ))}
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  if (screen === 'new-message') {
+    const contacts = [{ id:ADMIN_ID, name:'Contractor Verified Team', role:'admin', isSupport:true }, ...usersList.filter(u => u.id !== user.id)];
+    return (
+      <PhoneFrame title="New Message" showBack onBack={() => setScreen('messages')}>
+        <div className="p-5 space-y-3">
+          <div className="text-xs text-stone-500 uppercase tracking-wider font-semibold mb-2">Contacts</div>
+          {contacts.map(u => (
+            <button key={u.id} onClick={() => openConversation(u.id)} className="w-full bg-white border border-stone-200 hover:border-amber-500 rounded-xl p-3 text-left flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0 ${u.isSupport ? 'bg-amber-500 text-stone-950' : 'bg-stone-700 text-white'}`}>
+                {u.isSupport ? <Shield className="w-4 h-4" /> : (u.businessName || u.name).substring(0,2).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm text-stone-900 truncate">{u.businessName || u.name}</div>
+                <div className="text-xs text-stone-500 capitalize">{u.isSupport ? 'CV Support' : u.role}</div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-stone-400" />
+            </button>
+          ))}
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  if (screen === 'chat' && activeConvoKey) {
+    const convo = conversations[activeConvoKey];
+    const otherId = convo.participants.find(p => p !== user.id);
+    const other = otherId === ADMIN_ID ? { name:'Contractor Verified Team' } : usersList.find(u => u.id === otherId);
+    const otherName = other?.businessName || other?.name || 'Unknown';
+    return (
+      <PhoneFrame title={otherName} showBack onBack={() => { setActiveConvoKey(null); setScreen('messages'); }}>
+        <div className="flex flex-col" style={{height:'690px'}}>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-stone-50">
+            {convo.messages.length === 0 ? (
+              <div className="text-center py-12"><MessagesSquare className="w-12 h-12 text-stone-300 mx-auto mb-3" /><div className="text-sm text-stone-500">Say hi to {otherName}!</div></div>
+            ) : convo.messages.map(msg => (
+              <div key={msg.id} className={`flex ${msg.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${msg.senderId === user.id ? 'bg-stone-950 text-amber-500' : 'bg-white border border-stone-200 text-stone-900'}`}>
+                  <div className="text-sm">{msg.text}</div>
+                  <div className={`text-[10px] mt-1 text-stone-400`}>{new Date(msg.createdAt).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}</div>
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="p-3 bg-white border-t border-stone-200 flex gap-2">
+            <input value={messageDraft} onChange={e => setMessageDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendMessage(); }} placeholder="Type a message..." className="flex-1 bg-stone-100 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            <button onClick={sendMessage} disabled={!messageDraft.trim()} className="bg-stone-950 disabled:bg-stone-300 text-amber-500 disabled:text-stone-500 rounded-full w-10 h-10 flex items-center justify-center"><Send className="w-4 h-4" /></button>
+          </div>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  // ============ PARTNERS ============
+  if (screen === 'partners') {
+    return (
+      <PhoneFrame title="Exclusive Partners" showBack onBack={() => setScreen('home')}>
+        <div className="p-5 space-y-4">
+          <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 text-stone-100">
+            <Crown className="w-8 h-8 text-amber-500 mb-2" />
+            <div className="text-xl" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>The Elite Circle</div>
+            <div className="text-sm text-stone-400 mt-1">Hand-selected partners who have earned their place through craftsmanship, integrity, and consistent results.</div>
+          </div>
+          <div className="space-y-3">
+            {EXCLUSIVE_PARTNERS.map(p => {
+              const partner = { ...p, ...(partnerEdits[p.id] || {}) };
+              return (
+                <button key={partner.id} onClick={() => { setSelectedPartner(partner); setScreen('partner-detail'); }} className="w-full bg-white border border-stone-200 hover:border-amber-500 rounded-2xl p-4 text-left flex items-center gap-4">
+                  {partner.imageUrl ? <img src={partner.imageUrl} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-stone-200" /> : <div className={`w-16 h-16 ${partner.color} rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0`} style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>{partner.initials}</div>}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-stone-900 truncate">{partner.name}</div>
+                    <div className="text-xs text-amber-600 uppercase tracking-wider font-semibold mt-0.5">{partner.specialty}</div>
+                    {partner.company && <div className="text-xs text-stone-500 mt-0.5">{partner.company}</div>}
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-stone-400" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  if (screen === 'partner-detail' && selectedPartner) {
+    return (
+      <PhoneFrame title="Partner" showBack onBack={() => setScreen('partners')}>
+        <div className="p-5 space-y-5">
+          <div className="text-center pt-2">
+            {selectedPartner.imageUrl ? <img src={selectedPartner.imageUrl} alt="" className="w-28 h-28 rounded-2xl object-cover mx-auto mb-4 border border-stone-200" /> : <div className={`w-28 h-28 ${selectedPartner.color} rounded-2xl flex items-center justify-center text-white font-bold text-3xl mx-auto mb-4`} style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>{selectedPartner.initials}</div>}
+            <div className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider"><Crown className="w-3 h-3" /> Exclusive Partner</div>
+            <h2 className="text-3xl text-stone-900 mt-3" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>{selectedPartner.name}</h2>
+            <div className="text-sm text-amber-700 font-semibold mt-1">{selectedPartner.specialty}</div>
+            {selectedPartner.company && <div className="text-xs text-stone-500 mt-0.5">{selectedPartner.company}</div>}
+          </div>
+          <div className="bg-stone-50 rounded-2xl p-5 text-stone-700 text-sm italic">"{selectedPartner.tagline}"</div>
+          <div className="text-sm text-stone-700 px-1">{selectedPartner.description}</div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900 text-center italic">{selectedPartner.badge}</div>
+          <div className="space-y-2">
+            {selectedPartner.phone && <a href={`tel:${selectedPartner.phone.replace(/[^0-9]/g,'')}`} className="w-full bg-stone-950 text-amber-500 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><Phone className="w-4 h-4" /> Call {fmtPhone(selectedPartner.phone)}</a>}
+            {selectedPartner.website && <a href={selectedPartner.website} target="_blank" rel="noopener noreferrer" className="w-full bg-white border border-stone-300 text-stone-900 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><Globe className="w-4 h-4" /> Visit Website <ExternalLink className="w-3 h-3" /></a>}
+            {selectedPartner.email && <a href={`mailto:${selectedPartner.email}`} className="w-full bg-white border border-stone-300 text-stone-900 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><Mail className="w-4 h-4" /> {selectedPartner.email}</a>}
+            {!selectedPartner.phone && !selectedPartner.website && !selectedPartner.email && <div className="bg-stone-50 rounded-xl p-3 text-center text-xs text-stone-500">Contact info coming soon</div>}
+          </div>
+          {role === 'admin' && <button onClick={() => {
+            const newDesc = prompt('Description:', selectedPartner.description); if (newDesc === null) return;
+            const newSpec = prompt('Specialty:', selectedPartner.specialty);
+            const newPhone = prompt('Phone:', selectedPartner.phone || '');
+            const newSite = prompt('Website:', selectedPartner.website || '');
+            const newEmail = prompt('Email:', selectedPartner.email || '');
+            const next = { ...partnerEdits, [selectedPartner.id]: { description:newDesc, specialty:newSpec || selectedPartner.specialty, phone:newPhone || '', website:newSite || '', email:newEmail || '' }};
+            savePartnerEdits(next);
+            setSelectedPartner({ ...selectedPartner, description:newDesc, specialty:newSpec, phone:newPhone, website:newSite, email:newEmail });
+          }} className="w-full bg-white border border-stone-300 text-stone-700 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2"><Edit2 className="w-4 h-4" /> Edit Details</button>}
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  // ============ PUBLIC DIRECTORY ============
+  if (screen === 'directory') {
+    const filtered = members.filter(m => {
+      const matchCat = directoryCategory === 'All' || m.category === directoryCategory;
+      const matchSearch = !directorySearch || m.name.toLowerCase().includes(directorySearch.toLowerCase()) || m.category.toLowerCase().includes(directorySearch.toLowerCase());
+      return matchCat && matchSearch;
+    });
+    const categoriesWithMembers = ['All', ...Array.from(new Set(members.map(m => m.category))).sort()];
+    return (
+      <PhoneFrame title="Member Directory" showBack onBack={() => setScreen('home')}>
+        <div className="p-5 space-y-4">
+          <div className="bg-stone-50 rounded-xl p-4">
+            <div className="text-xs text-stone-500 uppercase tracking-wider font-semibold mb-1">Vetted CV Members</div>
+            <div className="text-2xl font-bold text-stone-900">{members.length} contractors</div>
+            <div className="text-xs text-stone-500">across {categoriesWithMembers.length - 1} trades</div>
+          </div>
+          <div className="relative">
+            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input placeholder="Search by name or category..." value={directorySearch} onChange={e => setDirectorySearch(e.target.value)} className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:border-amber-500 focus:outline-none" />
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categoriesWithMembers.map(c => (
+              <button key={c} onClick={() => setDirectoryCategory(c)} className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ${directoryCategory === c ? 'bg-stone-950 text-amber-500' : 'bg-stone-100 text-stone-600'}`}>{c}</button>
+            ))}
+          </div>
+          <div className="space-y-2">
+            {filtered.length === 0 ? (
+              <div className="text-center py-8 text-sm text-stone-500">No members found.</div>
+            ) : filtered.map(m => (
+              <button key={m.id} onClick={() => { setSelectedMember(m); setScreen('member-detail'); }} className="w-full bg-white border border-stone-200 hover:border-amber-500 rounded-xl p-3 text-left flex items-center gap-3 transition-all">
+                {m.logo ? <img src={m.logo} alt="" className="w-12 h-12 rounded-lg object-cover bg-stone-100 border border-stone-200 flex-shrink-0" onError={(e) => { e.target.style.display='none'; }} /> : <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0"><Building2 className="w-5 h-5 text-amber-700" /></div>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <div className="font-semibold text-stone-900 truncate text-sm">{m.name}</div>
+                    {m.featured && <Star className="w-3 h-3 fill-amber-500 text-amber-500 flex-shrink-0" />}
+                  </div>
+                  <div className="text-xs text-amber-600">{m.category}</div>
+                  {m.license && <div className="text-xs text-stone-400">License #{m.license}</div>}
+                </div>
+                <ChevronRight className="w-4 h-4 text-stone-400" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  if (screen === 'member-detail' && selectedMember) {
+    const m = selectedMember;
+    return (
+      <PhoneFrame title="Member Profile" showBack onBack={() => setScreen('directory')}>
+        <div className="p-5 space-y-4">
+          <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 text-stone-100 text-center">
+            {m.logo ? <img src={m.logo} alt="" className="w-24 h-24 rounded-2xl object-cover mx-auto mb-3 bg-white p-2" onError={(e) => { e.target.style.display='none'; }} /> : <div className="w-24 h-24 rounded-2xl bg-amber-500 flex items-center justify-center mx-auto mb-3"><Building2 className="w-10 h-10 text-stone-950" /></div>}
+            <div className="inline-flex items-center gap-1 bg-amber-500 text-stone-950 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2"><Shield className="w-3 h-3" /> Verified Member</div>
+            <h2 className="text-2xl" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>{m.name}</h2>
+            <div className="text-sm text-amber-500 mt-1">{m.category}</div>
+            {m.license && <div className="text-xs text-stone-400 mt-1">TX License #{m.license}</div>}
+          </div>
+          <div className="space-y-2">
+            {m.phone && <a href={`tel:${m.phone.replace(/\D/g,'')}`} className="w-full bg-stone-950 text-amber-500 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><Phone className="w-4 h-4" /> {fmtPhone(m.phone)}</a>}
+            {m.website && <a href={m.website} target="_blank" rel="noopener noreferrer" className="w-full bg-white border border-stone-300 text-stone-900 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><Globe className="w-4 h-4" /> Website <ExternalLink className="w-3 h-3" /></a>}
+            {m.email && <a href={`mailto:${m.email}`} className="w-full bg-white border border-stone-300 text-stone-900 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 text-sm"><Mail className="w-4 h-4" /> <span className="truncate">{m.email}</span></a>}
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-start gap-2">
+            <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div>Vetted by Contractor Verified. Licensed, insured, and background-checked.</div>
+          </div>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  // ============ CONTRACTOR PUBLIC PROFILE (for registered contractors) ============
+  if (screen === 'contractor-profile' && selectedContractor) {
+    const profile = profiles[selectedContractor.id] || {};
+    const cReviews = getContractorReviews(selectedContractor.id);
+    const avg = getAvgRating(selectedContractor.id);
+    const canMsg = selectedContractor.id !== user.id;
+    return (
+      <PhoneFrame title="Contractor" showBack onBack={() => setScreen(role === 'contractor' ? 'home' : (role === 'admin' ? 'ad-users' : 'home'))}>
+        <div className="p-5 space-y-4">
+          <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 text-stone-100">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-14 h-14 bg-amber-500 rounded-xl flex items-center justify-center text-stone-950 font-bold text-xl" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>{(profile.businessName || selectedContractor.name).substring(0,2).toUpperCase()}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-amber-500/80 uppercase tracking-wider">Verified Member</div>
+                <div className="text-lg truncate">{profile.businessName || selectedContractor.name}</div>
+                {avg && <div className="flex items-center gap-1 text-sm mt-0.5"><Star className="w-3 h-3 fill-amber-500 text-amber-500" />{avg} · {cReviews.length} reviews</div>}
+              </div>
+            </div>
+            {profile.tagline && <div className="text-sm text-stone-300 italic">{profile.tagline}</div>}
+          </div>
+          {canMsg && <button onClick={() => openConversation(selectedContractor.id)} className="w-full bg-stone-950 text-amber-500 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><MessageCircle className="w-4 h-4" /> Message</button>}
+          {profile.bio && <div className="bg-white border border-stone-200 rounded-xl p-4"><div className="text-xs uppercase tracking-wider text-stone-500 mb-2 font-semibold">About</div><div className="text-sm text-stone-700">{profile.bio}</div></div>}
+          {profile.categories && profile.categories.length > 0 && <div className="bg-white border border-stone-200 rounded-xl p-4"><div className="text-xs uppercase tracking-wider text-stone-500 mb-2 font-semibold">Services</div><div className="flex flex-wrap gap-1.5">{profile.categories.map(c => <span key={c} className="text-xs bg-amber-50 text-amber-800 px-2 py-1 rounded-full">{c}</span>)}</div></div>}
+          <div className="bg-white border border-stone-200 rounded-xl p-4 space-y-2">
+            <div className="text-xs uppercase tracking-wider text-stone-500 mb-2 font-semibold">Contact</div>
+            {profile.phone && <div className="flex items-center gap-2 text-sm text-stone-700"><Phone className="w-4 h-4 text-stone-400" />{profile.phone}</div>}
+            {profile.email && <div className="flex items-center gap-2 text-sm text-stone-700"><Mail className="w-4 h-4 text-stone-400" />{profile.email}</div>}
+            {profile.website && <div className="flex items-center gap-2 text-sm text-stone-700"><Globe className="w-4 h-4 text-stone-400" />{profile.website}</div>}
+          </div>
+          {profile.photos && profile.photos.length > 0 && <div className="bg-white border border-stone-200 rounded-xl p-4"><div className="text-xs uppercase tracking-wider text-stone-500 mb-2 font-semibold">Photos</div><div className="grid grid-cols-3 gap-2">{profile.photos.map(p => <img key={p.id} src={p.url} alt="" className="w-full aspect-square object-cover rounded-lg" />)}</div></div>}
+          <div className="bg-white border border-stone-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs uppercase tracking-wider text-stone-500 font-semibold">Reviews</div>
+              {avg && <div className="flex items-center gap-1 text-sm"><Star className="w-4 h-4 fill-amber-500 text-amber-500" />{avg} ({cReviews.length})</div>}
+            </div>
+            {cReviews.length === 0 ? <div className="text-sm text-stone-500 text-center py-4">No reviews yet.</div> : cReviews.map(r => (
+              <div key={r.id} className="border-t border-stone-100 pt-3 first:border-0 first:pt-0 mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2"><div className="font-semibold text-sm">{r.reviewerName}</div>{r.verified && <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold">✓</span>}</div>
+                  <div className="flex">{[1,2,3,4,5].map(i => <Star key={i} className={`w-3 h-3 ${i <= r.rating ? 'fill-amber-500 text-amber-500' : 'text-stone-300'}`} />)}</div>
+                </div>
+                <div className="text-sm text-stone-700">{r.comment}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  // ============ EDIT PROFILE ============
+  if (screen === 'edit-profile' && profileEditForm) {
+    return (
+      <PhoneFrame title="Edit Profile" showBack onBack={() => { setProfileEditForm(null); setScreen('home'); }}>
+        <div className="p-5 space-y-3">
+          <FieldLabel>Business name</FieldLabel>
+          <input value={profileEditForm.businessName || ''} onChange={e => setProfileEditForm({...profileEditForm, businessName:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3" />
+          <FieldLabel>Tagline</FieldLabel>
+          <input value={profileEditForm.tagline || ''} onChange={e => setProfileEditForm({...profileEditForm, tagline:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3" />
+          <FieldLabel>Bio</FieldLabel>
+          <textarea value={profileEditForm.bio || ''} onChange={e => setProfileEditForm({...profileEditForm, bio:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3 h-24" />
+          <FieldLabel>Phone</FieldLabel>
+          <input value={profileEditForm.phone || ''} onChange={e => setProfileEditForm({...profileEditForm, phone:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3" />
+          <FieldLabel>Website</FieldLabel>
+          <input value={profileEditForm.website || ''} onChange={e => setProfileEditForm({...profileEditForm, website:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3" />
+          <FieldLabel>Photos</FieldLabel>
+          <label className="w-full bg-white border-2 border-dashed border-stone-300 rounded-xl p-4 flex items-center justify-center gap-2 cursor-pointer"><Camera className="w-5 h-5 text-stone-500" /><span className="text-sm text-stone-600">Upload photos</span><input type="file" accept="image/*" multiple onChange={e => handleFileUpload(e, 'photos')} className="hidden" /></label>
+          {profileEditForm.photos?.length > 0 && <div className="grid grid-cols-3 gap-2">{profileEditForm.photos.map(p => <div key={p.id} className="relative"><img src={p.url} className="w-full aspect-square object-cover rounded-lg" /><button onClick={() => setProfileEditForm({...profileEditForm, photos:profileEditForm.photos.filter(x => x.id !== p.id)})} className="absolute top-1 right-1 bg-stone-950/70 text-white rounded-full p-1"><X className="w-3 h-3" /></button></div>)}</div>}
+          <FieldLabel>Videos</FieldLabel>
+          <label className="w-full bg-white border-2 border-dashed border-stone-300 rounded-xl p-4 flex items-center justify-center gap-2 cursor-pointer"><Video className="w-5 h-5 text-stone-500" /><span className="text-sm text-stone-600">Upload videos</span><input type="file" accept="video/*" multiple onChange={e => handleFileUpload(e, 'videos')} className="hidden" /></label>
+          <button onClick={saveProfile} className="w-full bg-stone-950 text-amber-500 py-4 rounded-xl font-semibold mt-4 flex items-center justify-center gap-2"><Save className="w-4 h-4" /> Save</button>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  // ============ REVIEW ============
+  if (screen === 'leave-review' && selectedLead) {
+    const contractor = usersList.find(u => u.id === selectedLead.acceptedBy);
+    return (
+      <PhoneFrame title="Leave a Review" showBack onBack={() => setScreen('home')}>
+        <div className="p-5 space-y-4">
+          <div className="bg-stone-50 rounded-xl p-4 text-center">
+            <div className="text-xs uppercase tracking-wider text-stone-500">Reviewing</div>
+            <div className="font-semibold mt-1">{contractor?.businessName || contractor?.name}</div>
+            <div className="text-xs text-stone-500 mt-1">{selectedLead.category}</div>
+          </div>
+          <FieldLabel>Rating</FieldLabel>
+          <div className="flex justify-center gap-2 py-2">{[1,2,3,4,5].map(i => <button key={i} onClick={() => setReviewForm({...reviewForm, rating:i})}><Star className={`w-10 h-10 ${i <= reviewForm.rating ? 'fill-amber-500 text-amber-500' : 'text-stone-300'}`} /></button>)}</div>
+          <FieldLabel>Your experience</FieldLabel>
+          <textarea value={reviewForm.comment} onChange={e => setReviewForm({...reviewForm, comment:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3 h-32" />
+          <FieldLabel>Photos (optional)</FieldLabel>
+          <label className="w-full bg-white border-2 border-dashed border-stone-300 rounded-xl p-4 flex items-center justify-center gap-2 cursor-pointer"><Camera className="w-5 h-5 text-stone-500" /><span className="text-sm text-stone-600">Add photos</span><input type="file" accept="image/*" multiple onChange={handleReviewPhotoUpload} className="hidden" /></label>
+          <button onClick={async () => { await submitReview(selectedLead.id, selectedLead.acceptedBy); setScreen('home'); }} disabled={!reviewForm.comment.trim()} className="w-full bg-stone-950 disabled:bg-stone-300 text-amber-500 disabled:text-stone-500 py-4 rounded-xl font-semibold">Submit Review</button>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  // ============ HOMEOWNER ============
+  if (role === 'homeowner') {
+    if (screen === 'home') {
+      const display = showAllCategories ? CATEGORIES.filter(c => c.toLowerCase().includes(categorySearch.toLowerCase())) : FEATURED_CATEGORIES;
+      const pendingReviews = leads.filter(l => l.userId === user.id && l.status === 'completed' && !l.reviewed);
+      return (
+        <PhoneFrame title="Find a Pro">
+          <div className="p-6 space-y-5">
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-5 text-stone-950">
+              <Shield className="w-8 h-8 mb-2" strokeWidth={2.5} />
+              <div className="text-xl font-semibold">Vetted. Verified. Ready.</div>
+              <div className="text-sm opacity-80 mt-1">{members.length} pre-screened contractors across Austin.</div>
+            </div>
+            {pendingReviews.length > 0 && <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-2"><Star className="w-4 h-4 text-amber-600 fill-amber-500" /><span className="text-sm font-semibold text-amber-900">Pending review</span></div>
+              {pendingReviews.map(l => <button key={l.id} onClick={() => { setSelectedLead(l); setScreen('leave-review'); }} className="w-full bg-white border border-amber-200 rounded-lg p-3 mt-2 text-left text-sm flex items-center justify-between">Review {l.category} job<ChevronRight className="w-4 h-4 text-amber-600" /></button>)}
+            </div>}
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setScreen('directory')} className="bg-white border border-stone-200 rounded-2xl p-4 text-left">
+                <BookOpen className="w-6 h-6 text-amber-600 mb-2" />
+                <div className="font-semibold text-stone-900 text-sm">Browse Directory</div>
+                <div className="text-xs text-stone-500">{members.length} members</div>
+              </button>
+              <button onClick={() => setScreen('partners')} className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-4 text-stone-100 text-left">
+                <Crown className="w-6 h-6 text-amber-500 mb-2" />
+                <div className="font-semibold text-sm">Partners</div>
+                <div className="text-xs text-stone-400">Elite circle</div>
+              </button>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-stone-500 uppercase tracking-wider font-medium">Request Service</div>
+                <button onClick={() => { setShowAllCategories(!showAllCategories); setCategorySearch(''); }} className="text-xs text-amber-600 font-semibold">{showAllCategories ? 'Popular' : `All (${CATEGORIES.length})`}</button>
+              </div>
+              {showAllCategories && <div className="relative mb-3"><Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" /><input placeholder="Search..." value={categorySearch} onChange={e => setCategorySearch(e.target.value)} className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm" /></div>}
+              <div className={showAllCategories ? 'space-y-1.5 max-h-80 overflow-y-auto' : 'grid grid-cols-2 gap-2'}>
+                {display.map(cat => (
+                  <button key={cat} onClick={() => { setHomeownerForm({...homeownerForm, category:cat}); setScreen('ho-form'); }} className={showAllCategories ? "w-full bg-white border border-stone-200 hover:border-amber-500 rounded-lg px-3 py-2.5 text-left text-sm flex items-center justify-between" : "bg-white border border-stone-200 hover:border-amber-500 rounded-xl p-3 text-left"}>
+                    {showAllCategories ? (<><span>{cat}</span><ChevronRight className="w-4 h-4 text-stone-400" /></>) : (<><div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center mb-2"><Hammer className="w-4 h-4 text-amber-700" /></div><span className="text-xs font-medium leading-tight">{cat}</span></>)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </PhoneFrame>
+      );
+    }
+    if (screen === 'ho-form') return (
+      <PhoneFrame title="Project Details" showBack onBack={() => setScreen('home')}>
+        <div className="p-6 space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900"><span className="font-semibold">Service:</span> {homeownerForm.category}</div>
+          <input placeholder="ZIP code" value={homeownerForm.zip} onChange={e => setHomeownerForm({...homeownerForm, zip:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3" />
+          <textarea placeholder="Describe the project..." value={homeownerForm.scope} onChange={e => setHomeownerForm({...homeownerForm, scope:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3 h-28" />
+          <select value={homeownerForm.timeline} onChange={e => setHomeownerForm({...homeownerForm, timeline:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3"><option value="">Timeline...</option><option>ASAP</option><option>Within 2 weeks</option><option>Within a month</option><option>Just planning</option></select>
+          <button onClick={submitHomeownerRequest} disabled={!homeownerForm.zip || !homeownerForm.scope} className="w-full bg-stone-950 disabled:bg-stone-300 text-amber-500 disabled:text-stone-500 py-4 rounded-xl font-semibold">Match Me With Pros</button>
+        </div>
+      </PhoneFrame>
+    );
+    if (screen === 'ho-success') return (
+      <PhoneFrame title="Sent">
+        <div className="p-6 space-y-5 text-center">
+          <div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center mx-auto mt-4"><CheckCircle2 className="w-10 h-10 text-stone-950" strokeWidth={2.5} /></div>
+          <h2 className="text-2xl text-stone-900" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>You're matched!</h2>
+          <p className="text-stone-600 text-sm">Vetted pros in {homeownerForm.zip} are being notified.</p>
+          <button onClick={() => { setHomeownerForm({zip:'', category:'', scope:'', timeline:''}); setScreen('home'); }} className="w-full bg-stone-950 text-amber-500 py-4 rounded-xl font-semibold">Back</button>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  // ============ CONTRACTOR ============
+  if (role === 'contractor') {
+    if (screen === 'home') {
+      const myLeads = leads.filter(l => user.categories.includes(l.category));
+      const newCount = myLeads.filter(l => l.status === 'new').length;
+      const activeCount = myLeads.filter(l => l.status === 'accepted' && l.acceptedBy === user.id).length;
+      const closedCount = myLeads.filter(l => l.status === 'completed' && l.acceptedBy === user.id).length;
+      const myReviews = getContractorReviews(user.id);
+      const myAvg = getAvgRating(user.id);
+      return (
+        <PhoneFrame title="Dashboard">
+          <div className="p-6 space-y-5">
+            <button onClick={() => { setSelectedContractor(user); setScreen('contractor-profile'); }} className="w-full bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 text-stone-100 text-left">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center"><Award className="w-5 h-5 text-stone-950" strokeWidth={2.5} /></div>
+                <div className="flex-1 min-w-0"><div className="text-xs text-amber-500/80 uppercase tracking-wider">Verified</div><div className="text-lg truncate">{user.businessName || user.name}</div></div>
+                <Eye className="w-4 h-4 text-stone-400" />
+              </div>
+              {myAvg ? <div className="flex items-center gap-1 text-sm"><Star className="w-4 h-4 fill-amber-500 text-amber-500" />{myAvg} · {myReviews.length} reviews</div> : <div className="text-xs text-stone-400">No reviews yet</div>}
+            </button>
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={() => { setProfileEditForm(profiles[user.id] || { userId:user.id, businessName:user.businessName, categories:user.categories, photos:[], videos:[] }); setScreen('edit-profile'); }} className="bg-stone-950 text-amber-500 p-3 rounded-xl text-xs font-semibold flex flex-col items-start gap-1"><Edit2 className="w-4 h-4" /> Edit</button>
+              <button onClick={() => setScreen('directory')} className="bg-white border border-stone-200 p-3 rounded-xl text-xs font-semibold flex flex-col items-start gap-1"><BookOpen className="w-4 h-4 text-amber-600" /> Directory</button>
+              <button onClick={() => setScreen('partners')} className="bg-white border border-stone-200 p-3 rounded-xl text-xs font-semibold flex flex-col items-start gap-1"><Crown className="w-4 h-4 text-amber-600" /> Partners</button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white rounded-xl p-3 text-center border border-stone-200"><div className="text-2xl text-amber-600 font-bold">{newCount}</div><div className="text-xs text-stone-500 mt-1">New</div></div>
+              <div className="bg-white rounded-xl p-3 text-center border border-stone-200"><div className="text-2xl text-emerald-600 font-bold">{activeCount}</div><div className="text-xs text-stone-500 mt-1">Active</div></div>
+              <div className="bg-white rounded-xl p-3 text-center border border-stone-200"><div className="text-2xl text-stone-900 font-bold">{closedCount}</div><div className="text-xs text-stone-500 mt-1">Done</div></div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-3"><div className="text-sm font-semibold text-stone-800 uppercase tracking-wider">Leads</div>{newCount > 0 && <div className="bg-amber-500 text-stone-950 text-xs font-bold px-2 py-0.5 rounded-full">{newCount} NEW</div>}</div>
+              {myLeads.length === 0 ? <div className="bg-stone-50 rounded-2xl p-8 text-center"><Bell className="w-10 h-10 text-stone-300 mx-auto mb-3" /><div className="text-sm text-stone-500">No leads yet.</div></div>
+              : <div className="space-y-2">{myLeads.slice(0,10).map(l => <button key={l.id} onClick={() => { setSelectedLead(l); setScreen('ct-lead'); }} className="w-full bg-white border border-stone-200 hover:border-amber-500 rounded-xl p-4 text-left"><div className="flex items-center justify-between mb-1"><div className="font-semibold">{l.name}</div><StatusBadge status={l.status} /></div><div className="text-xs text-stone-500 flex gap-3"><span className="flex items-center gap-1"><Hammer className="w-3 h-3" />{l.category}</span><span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{l.zip}</span></div></button>)}</div>}
+            </div>
+          </div>
+        </PhoneFrame>
+      );
+    }
+    if (screen === 'ct-lead' && selectedLead) {
+      return (
+        <PhoneFrame title="Lead" showBack onBack={() => setScreen('home')}>
+          <div className="p-6 space-y-5">
+            <div className="flex items-start justify-between">
+              <div><div className="text-2xl" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>{selectedLead.name}</div><div className="text-sm text-stone-500 mt-1">{new Date(selectedLead.createdAt).toLocaleDateString()}</div></div>
+              <StatusBadge status={selectedLead.status} />
+            </div>
+            <div className="space-y-3">
+              <InfoRow icon={Hammer} label="Category" value={selectedLead.category} />
+              <InfoRow icon={Mail} label="Email" value={selectedLead.email} />
+              <InfoRow icon={MapPin} label="ZIP" value={selectedLead.zip} />
+              <InfoRow icon={Calendar} label="Timeline" value={selectedLead.timeline} />
+            </div>
+            {selectedLead.scope && <div className="bg-stone-50 rounded-xl p-4"><div className="text-xs uppercase text-stone-500 mb-2">Scope</div><div className="text-sm">{selectedLead.scope}</div></div>}
+            <div className="space-y-2 pt-2">
+              {selectedLead.status === 'new' && <>
+                <button onClick={() => updateLeadStatus(selectedLead.id, 'accepted')} className="w-full bg-stone-950 text-amber-500 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><ThumbsUp className="w-5 h-5" /> Accept</button>
+                <button onClick={() => updateLeadStatus(selectedLead.id, 'declined')} className="w-full bg-white border border-stone-200 text-stone-700 py-3 rounded-xl">Decline</button>
+              </>}
+              {selectedLead.status === 'accepted' && selectedLead.acceptedBy === user.id && <>
+                <button onClick={() => openConversation(selectedLead.userId)} className="w-full bg-stone-950 text-amber-500 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><MessageCircle className="w-5 h-5" /> Message Client</button>
+                <button onClick={() => updateLeadStatus(selectedLead.id, 'completed')} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><CheckCircle2 className="w-5 h-5" /> Complete</button>
+              </>}
+              {selectedLead.status === 'completed' && <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center text-emerald-800 text-sm"><CheckCircle2 className="w-8 h-8 mx-auto mb-2" /> Completed</div>}
+            </div>
+          </div>
+        </PhoneFrame>
+      );
+    }
+  }
+
+  // ============ REALTOR ============
+  if (role === 'realtor') {
+    if (screen === 'home') {
+      const myRefs = referrals.filter(r => r.userId === user.id);
+      return (
+        <PhoneFrame title="Refer a Client">
+          <div className="p-6 space-y-5">
+            <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 text-stone-100"><Briefcase className="w-8 h-8 text-amber-500 mb-2" /><div className="text-xl" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>Hire the pros the pros hire™</div></div>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setScreen('directory')} className="bg-white border border-stone-200 rounded-xl p-4 text-left"><BookOpen className="w-5 h-5 text-amber-600 mb-2" /><div className="font-semibold text-sm">Directory</div><div className="text-xs text-stone-500">{members.length} members</div></button>
+              <button onClick={() => setScreen('partners')} className="bg-white border border-stone-200 rounded-xl p-4 text-left"><Crown className="w-5 h-5 text-amber-600 mb-2" /><div className="font-semibold text-sm">Partners</div></button>
+            </div>
+            <input placeholder="Client name" value={realtorForm.clientName} onChange={e => setRealtorForm({...realtorForm, clientName:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3" />
+            <input placeholder="Client phone" value={realtorForm.clientPhone} onChange={e => setRealtorForm({...realtorForm, clientPhone:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3" />
+            <input placeholder="Client email" value={realtorForm.clientEmail} onChange={e => setRealtorForm({...realtorForm, clientEmail:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3" />
+            <select value={realtorForm.category} onChange={e => setRealtorForm({...realtorForm, category:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3"><option value="">Service...</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
+            <textarea placeholder="Notes" value={realtorForm.notes} onChange={e => setRealtorForm({...realtorForm, notes:e.target.value})} className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3 h-20" />
+            <button onClick={submitRealtorReferral} disabled={!realtorForm.clientName || !realtorForm.category} className="w-full bg-stone-950 disabled:bg-stone-300 text-amber-500 disabled:text-stone-500 py-4 rounded-xl font-semibold">Send Referral</button>
+            {myRefs.length > 0 && <div className="pt-4"><div className="text-sm font-semibold text-stone-800 uppercase tracking-wider mb-2">Your Referrals</div><div className="space-y-2">{myRefs.slice(0,5).map(r => <div key={r.id} className="bg-white border border-stone-200 rounded-xl p-3"><div className="flex items-center justify-between"><div className="font-semibold text-sm">{r.clientName}</div><StatusBadge status={r.status} /></div><div className="text-xs text-stone-500 mt-1">{r.category}</div></div>)}</div></div>}
+          </div>
+        </PhoneFrame>
+      );
+    }
+    if (screen === 'rl-success') return <PhoneFrame title="Sent"><div className="p-6 space-y-5 text-center"><div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center mx-auto mt-4"><CheckCircle2 className="w-10 h-10 text-stone-950" strokeWidth={2.5} /></div><h2 className="text-2xl" style={{fontFamily:"'Instrument Serif', Georgia, serif"}}>Referral sent!</h2><button onClick={() => { setRealtorForm({clientName:'', clientPhone:'', clientEmail:'', category:'', notes:''}); setScreen('home'); }} className="w-full bg-stone-950 text-amber-500 py-4 rounded-xl font-semibold">Send Another</button></div></PhoneFrame>;
+  }
+
+  // ============ ADMIN ============
+  if (role === 'admin') {
+    const allActivity = [...leads.map(l => ({...l, _kind:'lead'})), ...referrals.map(r => ({...r, _kind:'referral'}))].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const filteredActivity = adminFilter === 'all' ? allActivity : adminFilter === 'leads' ? allActivity.filter(a => a._kind === 'lead') : adminFilter === 'referrals' ? allActivity.filter(a => a._kind === 'referral') : allActivity.filter(a => a.status === adminFilter);
+    const contractors = usersList.filter(u => u.role === 'contractor');
+    const realtors = usersList.filter(u => u.role === 'realtor');
+    const homeowners = usersList.filter(u => u.role === 'homeowner');
+
+    if (screen === 'home') return (
+      <PhoneFrame title="Admin">
+        <div className="p-5 space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard label="Members" value={members.length} icon={Building2} color="amber" />
+            <StatCard label="Leads" value={leads.length} icon={Home} color="stone" />
+            <StatCard label="Reviews" value={reviews.length} icon={Star} color="emerald" />
+            <StatCard label="Users" value={usersList.length} icon={Users} color="blue" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setScreen('ad-activity')} className="bg-stone-950 text-amber-500 p-4 rounded-xl font-semibold text-sm flex flex-col items-start gap-1"><FileText className="w-5 h-5" /> Activity</button>
+            <button onClick={() => setScreen('ad-users')} className="bg-stone-950 text-amber-500 p-4 rounded-xl font-semibold text-sm flex flex-col items-start gap-1"><Users className="w-5 h-5" /> Users</button>
+            <button onClick={() => setScreen('directory')} className="bg-white border border-stone-200 p-4 rounded-xl font-semibold text-sm flex flex-col items-start gap-1"><BookOpen className="w-5 h-5 text-amber-600" /> Directory</button>
+            <button onClick={() => setScreen('partners')} className="bg-white border border-stone-200 p-4 rounded-xl font-semibold text-sm flex flex-col items-start gap-1"><Crown className="w-5 h-5 text-amber-600" /> Partners</button>
+            <button onClick={() => setScreen('ad-reviews')} className="bg-white border border-stone-200 p-4 rounded-xl font-semibold text-sm flex flex-col items-start gap-1"><Star className="w-5 h-5 text-amber-600" /> Reviews</button>
+            <button onClick={() => setScreen('ad-import')} className="bg-white border border-stone-200 p-4 rounded-xl font-semibold text-sm flex flex-col items-start gap-1"><Upload className="w-5 h-5 text-amber-600" /> Import Members</button>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+            <strong>Directory:</strong> {members.length} vetted contractors seeded from contractorverifiedatx.com. Use "Import Members" to add more in bulk.
+          </div>
+        </div>
+      </PhoneFrame>
+    );
+
+    if (screen === 'ad-import') return (
+      <PhoneFrame title="Import Members" showBack onBack={() => setScreen('home')}>
+        <div className="p-5 space-y-4">
+          <div className="bg-stone-50 rounded-xl p-4 text-sm text-stone-700">
+            <div className="font-semibold mb-2">Bulk import format</div>
+            <div className="text-xs text-stone-600">Paste a JSON array of member objects. Each needs at minimum <code className="bg-stone-200 px-1 rounded">name</code> and <code className="bg-stone-200 px-1 rounded">category</code>. Optional: <code className="bg-stone-200 px-1 rounded">phone</code>, <code className="bg-stone-200 px-1 rounded">email</code>, <code className="bg-stone-200 px-1 rounded">website</code>, <code className="bg-stone-200 px-1 rounded">logo</code>, <code className="bg-stone-200 px-1 rounded">license</code>, <code className="bg-stone-200 px-1 rounded">featured</code>.</div>
+          </div>
+          <div className="bg-stone-100 rounded-lg p-3 text-xs font-mono text-stone-700 overflow-x-auto">
+            {`[{"name":"Acme Plumbing","category":"Plumbers","phone":"5125551234","website":"https://acme.com"}]`}
+          </div>
+          <textarea value={importJson} onChange={e => setImportJson(e.target.value)} placeholder="Paste JSON here..." className="w-full bg-white border border-stone-200 rounded-xl px-4 py-3 font-mono text-xs h-48" />
+          {importStatus && <div className={`rounded-xl p-3 text-sm ${importStatus.startsWith('✓') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>{importStatus}</div>}
+          <button onClick={importMembers} disabled={!importJson.trim()} className="w-full bg-stone-950 disabled:bg-stone-300 text-amber-500 disabled:text-stone-500 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"><Upload className="w-4 h-4" /> Import</button>
+          <button onClick={async () => { if (confirm('Reset to seed members only?')) await saveMembers(SEED_MEMBERS); }} className="w-full bg-white border border-stone-300 text-stone-600 py-2 rounded-xl text-sm">Reset to seed ({SEED_MEMBERS.length} members)</button>
+        </div>
+      </PhoneFrame>
+    );
+
+    if (screen === 'ad-activity') return (
+      <PhoneFrame title="Activity" showBack onBack={() => setScreen('home')}>
+        <div className="p-5 space-y-4">
+          <div className="flex gap-2 overflow-x-auto">{['all','leads','referrals','new','accepted','completed'].map(f => <button key={f} onClick={() => setAdminFilter(f)} className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap capitalize ${adminFilter === f ? 'bg-stone-950 text-amber-500' : 'bg-stone-100 text-stone-600'}`}>{f}</button>)}</div>
+          {filteredActivity.length === 0 ? <div className="bg-stone-50 rounded-2xl p-8 text-center"><FileText className="w-10 h-10 text-stone-300 mx-auto mb-3" /><div className="text-sm text-stone-500">No activity</div></div>
+          : <div className="space-y-2">{filteredActivity.map(i => <div key={i.id} className="bg-white border border-stone-200 rounded-xl p-4"><div className="flex items-start justify-between mb-2"><div className="flex-1"><div className="flex items-center gap-2"><span className={`text-xs font-bold uppercase ${i._kind === 'lead' ? 'text-amber-600' : 'text-blue-600'}`}>{i._kind}</span><span className="text-xs text-stone-400">{new Date(i.createdAt).toLocaleString()}</span></div><div className="font-semibold mt-1">{i._kind === 'lead' ? i.name : i.clientName}</div></div><StatusBadge status={i.status} /></div><div className="text-xs text-stone-600">{i.category}</div></div>)}</div>}
+        </div>
+      </PhoneFrame>
+    );
+
+    if (screen === 'ad-users') return (
+      <PhoneFrame title="Users" showBack onBack={() => setScreen('home')}>
+        <div className="p-5 space-y-4">
+          {[{title:'Contractors', list:contractors, Icon:Hammer, clickable:true}, {title:'Realtors', list:realtors, Icon:Briefcase}, {title:'Homeowners', list:homeowners, Icon:Home}].map(({title, list, Icon, clickable}) => (
+            <div key={title}>
+              <div className="flex items-center gap-2 mb-2"><Icon className="w-4 h-4 text-amber-600" /><div className="text-sm font-semibold uppercase">{title}</div><div className="text-xs text-stone-500">({list.length})</div></div>
+              {list.length === 0 ? <div className="bg-stone-50 rounded-xl p-3 text-xs text-stone-500 text-center">None yet</div>
+              : <div className="space-y-2 mb-4">{list.map(u => <div key={u.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-2">
+                <button onClick={() => { if (clickable) { setSelectedContractor(u); setScreen('contractor-profile'); } }} disabled={!clickable} className="flex-1 text-left min-w-0"><div className="font-semibold text-sm">{u.name}</div>{u.businessName && <div className="text-xs text-stone-500">{u.businessName}</div>}<div className="text-xs text-stone-400 truncate">{u.email}</div></button>
+                <button onClick={() => openConversation(u.id)} className="text-amber-600 p-1"><MessageCircle className="w-4 h-4" /></button>
+              </div>)}</div>}
+            </div>
+          ))}
+        </div>
+      </PhoneFrame>
+    );
+
+    if (screen === 'ad-reviews') return (
+      <PhoneFrame title="Reviews" showBack onBack={() => setScreen('home')}>
+        <div className="p-5 space-y-3">{reviews.length === 0 ? <div className="bg-stone-50 rounded-2xl p-8 text-center"><Star className="w-10 h-10 text-stone-300 mx-auto mb-3" /><div className="text-sm text-stone-500">No reviews</div></div>
+        : reviews.map(r => { const c = usersList.find(u => u.id === r.contractorId); return <div key={r.id} className="bg-white border border-stone-200 rounded-xl p-4"><div className="flex items-center justify-between mb-2"><div className="font-semibold text-sm">{r.reviewerName}</div><div className="flex">{[1,2,3,4,5].map(i => <Star key={i} className={`w-3 h-3 ${i <= r.rating ? 'fill-amber-500 text-amber-500' : 'text-stone-300'}`} />)}</div></div><div className="text-xs text-stone-500 mb-2">For {c?.businessName || c?.name} · {r.category}</div><div className="text-sm">{r.comment}</div></div>; })}</div>
+      </PhoneFrame>
+    );
+  }
+
+  return null;
+}
+
+function StatCard({label, value, icon:Icon, color}) {
+  const colors = { amber:'bg-amber-500 text-stone-950', stone:'bg-stone-900 text-amber-500', emerald:'bg-emerald-600 text-white', blue:'bg-blue-600 text-white' };
+  return <div className={`rounded-2xl p-4 ${colors[color]}`}><Icon className="w-5 h-5 mb-2 opacity-80" /><div className="text-3xl font-bold leading-none">{value}</div><div className="text-xs opacity-80 mt-1">{label}</div></div>;
+}
+function StatusBadge({status}) { const s = { new:'bg-amber-100 text-amber-800', accepted:'bg-blue-100 text-blue-800', completed:'bg-emerald-100 text-emerald-800', declined:'bg-stone-200 text-stone-600' }; return <span className={`text-xs px-2 py-1 rounded-full font-semibold uppercase tracking-wider ${s[status] || s.new}`}>{status}</span>; }
+function InfoRow({icon:Icon, label, value}) { if (!value) return null; return <div className="flex items-center gap-3"><div className="w-9 h-9 bg-stone-100 rounded-lg flex items-center justify-center flex-shrink-0"><Icon className="w-4 h-4 text-stone-600" /></div><div className="flex-1 min-w-0"><div className="text-xs text-stone-500 uppercase tracking-wider">{label}</div><div className="text-sm text-stone-900 truncate">{value}</div></div></div>; }
+function FieldLabel({children}) { return <div className="text-xs uppercase tracking-wider text-stone-500 font-semibold mt-2">{children}</div>; }
